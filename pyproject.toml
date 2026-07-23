@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "datapilot-agent"
+version = "0.2.0"
+description = "A governed enterprise data analysis agent with safe Text-to-SQL and evidence review."
+readme = "README.md"
+requires-python = ">=3.11,<3.15"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.32,<1",
+  "pydantic>=2.9,<3",
+  "pydantic-settings>=2.5,<3",
+  "langgraph>=0.2.60,<1",
+]
+
+[project.optional-dependencies]
+openai = ["langchain-openai>=0.3,<1"]
+postgres = ["psycopg[binary]>=3.2,<4"]
+dev = [
+  "pytest>=8.3,<9",
+  "pytest-cov>=6,<7",
+  "httpx>=0.28,<1",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+datapilot = "datapilot.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/datapilot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --cov=datapilot --cov-report=term-missing --cov-fail-under=80"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
