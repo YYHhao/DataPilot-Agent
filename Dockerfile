@@ -3,11 +3,12 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml requirements.txt README.md ./
 COPY src ./src
 COPY scripts ./scripts
 COPY data/catalog.json ./data/catalog.json
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --no-deps .
 RUN python scripts/seed_demo.py
 
 RUN useradd --create-home --uid 10001 datapilot \

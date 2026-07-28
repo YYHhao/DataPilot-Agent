@@ -4,28 +4,50 @@ from datapilot.models import (
     AnalysisPlan,
     AnalysisType,
     ColumnSchema,
+    RiskLevel,
     SchemaProfile,
+    SqlQuery,
+    SqlQueryPlan,
     TableSchema,
 )
 
 
-def test_planner_routes_high_risk_request_to_approval():
-    plan = PlannerAgent().run("Delete source data and generate a summary")
+class StubModel:
+    def __init__(self, response):
+        self.response = response
+        self.prompts = []
+
+    def invoke(self, prompt):
+        self.prompts.append(prompt)
+        return self.response
+
+
+def test_planner_uses_llm_and_enforces_independent_risk_policy():
+    response = AnalysisPlan(
+        objective="summarize",
+        analysis_type=AnalysisType.OVERVIEW,
+        steps=["query"],
+    )
+    model = StubModel(response)
+    plan = PlannerAgent(model).run("Delete source data and generate a summary")
+    assert model.prompts
     assert plan.requires_approval
-    assert plan.risk_level == "high"
+    assert plan.risk_level == RiskLevel.HIGH
     assert plan.risk_reasons
 
 
-def test_planner_classifies_trend_request():
-    plan = PlannerAgent().run("分析每月销售趋势")
-    assert plan.analysis_type == AnalysisType.TREND
-
-
-def test_planner_requires_approval_for_bulk_export():
-    assert PlannerAgent().run("Export all customer records").requires_approval
-
-
-def test_sql_agent_uses_only_profiled_table():
+def test_sql_agent_uses_structured_llm_output():
+    expected = SqlQueryPlan(
+        dialect="sqlite",
+        queries=[
+            SqlQuery(
+                query_id="Q1",
+                purpose="rank regions",
+                sql='SELECT region, SUM(revenue) FROM "orders" GROUP BY region',
+            )
+        ],
+    )
+    model = StubModel(expected)
     profile = SchemaProfile(
         dataset_id="sales",
         dataset_name="Sales",
@@ -46,6 +68,6 @@ def test_sql_agent_uses_only_profiled_table():
         analysis_type=AnalysisType.RANKING,
         steps=["rank"],
     )
-    queries = SqlAgent().run(profile, plan).queries
-    assert any('"orders"' in query.sql for query in queries)
-    assert any("GROUP BY" in query.sql for query in queries)
+    result = SqlAgent(model).run(profile, plan)
+    assert result == expected
+    assert "orders" in model.prompts[0]

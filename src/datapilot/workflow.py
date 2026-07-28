@@ -33,13 +33,15 @@ class DataPilotWorkflow:
         self,
         catalog: DatasetCatalog | None = None,
         store: JsonRunStore | None = None,
+        planner: PlannerAgent | None = None,
+        sql_agent: SqlAgent | None = None,
     ):
         self.catalog = catalog or DatasetCatalog(settings.catalog_path)
         self.sources = DataSourceFactory(self.catalog.path.parent)
         self.store = store or JsonRunStore(settings.run_dir)
-        self.planner = PlannerAgent()
+        self.planner = planner or PlannerAgent()
         self.schema_agent = SchemaAgent()
-        self.sql_agent = SqlAgent()
+        self.sql_agent = sql_agent or SqlAgent()
         self.analyst = AnalystAgent()
         self.reviewer = ReviewerAgent()
         self.reporter = ReporterAgent()
@@ -52,6 +54,7 @@ class DataPilotWorkflow:
         builder.add_node("inspect_schema", self._inspect_schema)
         builder.add_node("plan_sql", self._plan_sql)
         builder.add_node("execute_sql", self._execute_sql)
+        builder.add_node("repair_sql", self._repair_sql)
         builder.add_node("analyze", self._analyze)
         builder.add_node("review", self._review)
         builder.add_node("report", self._report)
@@ -70,7 +73,12 @@ class DataPilotWorkflow:
         )
         builder.add_edge("inspect_schema", "plan_sql")
         builder.add_edge("plan_sql", "execute_sql")
-        builder.add_edge("execute_sql", "analyze")
+        builder.add_conditional_edges(
+            "execute_sql",
+            self._execution_route,
+            {"repair": "repair_sql", "analyze": "analyze"},
+        )
+        builder.add_edge("repair_sql", "execute_sql")
         builder.add_edge("analyze", "review")
         builder.add_edge("review", "report")
         builder.add_edge("report", "persist")
@@ -130,6 +138,7 @@ class DataPilotWorkflow:
             )
         return {
             "sql_plan": plan.model_dump(),
+            "sql_attempt": 0,
             "trace": state["trace"],
             "status": "sql_planned",
         }
@@ -168,8 +177,42 @@ class DataPilotWorkflow:
             event["failed_queries"] = sum(result["status"] != "ok" for result in results)
         return {
             "query_results": results,
+            "sql_attempt": state.get("sql_attempt", 0) + 1,
             "trace": state["trace"],
             "status": "sql_executed",
+        }
+
+    @staticmethod
+    def _execution_route(state: AgentState) -> Literal["repair", "analyze"]:
+        failed = any(result["status"] != "ok" for result in state["query_results"])
+        return (
+            "repair"
+            if failed and state.get("sql_attempt", 0) <= settings.sql_max_retries
+            else "analyze"
+        )
+
+    def _repair_sql(self, state: AgentState) -> dict:
+        failures = [
+            {
+                "query_id": result["query_id"],
+                "status": result["status"],
+                "error": result.get("error", "unknown"),
+            }
+            for result in state["query_results"]
+            if result["status"] != "ok"
+        ]
+        with trace_node(state, "sql_repair_agent") as event:
+            repaired = self.sql_agent.repair(
+                SchemaProfile.model_validate(state["schema_profile"]),
+                AnalysisPlan.model_validate(state["plan"]),
+                SqlQueryPlan.model_validate(state["sql_plan"]),
+                failures,
+            )
+            event["attempt"] = state.get("sql_attempt", 0)
+        return {
+            "sql_plan": repaired.model_dump(),
+            "trace": state["trace"],
+            "status": "sql_repaired",
         }
 
     def _analyze(self, state: AgentState) -> dict:

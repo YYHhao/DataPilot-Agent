@@ -6,8 +6,50 @@ import sqlite3
 import pytest
 
 from datapilot.catalog import DatasetCatalog
+from datapilot.models import (
+    AnalysisPlan,
+    AnalysisType,
+    RiskLevel,
+    SqlQuery,
+    SqlQueryPlan,
+)
+from datapilot.risk import detect_risks
 from datapilot.storage import JsonRunStore
 from datapilot.workflow import DataPilotWorkflow
+
+
+class FakePlanner:
+    def run(self, question: str) -> AnalysisPlan:
+        risks = detect_risks(question)
+        return AnalysisPlan(
+            objective=question,
+            analysis_type=(
+                AnalysisType.RANKING
+                if "rank" in question.lower()
+                else AnalysisType.OVERVIEW
+            ),
+            steps=["inspect schema", "query approved data", "review evidence"],
+            risk_level=RiskLevel.HIGH if risks else RiskLevel.LOW,
+            requires_approval=bool(risks),
+            risk_reasons=risks,
+        )
+
+
+class FakeSqlAgent:
+    def run(self, profile, plan) -> SqlQueryPlan:
+        return SqlQueryPlan(
+            dialect=profile.driver,
+            queries=[
+                SqlQuery(
+                    query_id="Q1",
+                    purpose="count records",
+                    sql='SELECT COUNT(*) AS record_count FROM "sales"',
+                )
+            ],
+        )
+
+    def repair(self, profile, plan, previous, failures) -> SqlQueryPlan:
+        return self.run(profile, plan)
 
 
 @pytest.fixture
@@ -69,4 +111,9 @@ def enterprise_runtime(tmp_path):
     )
     catalog = DatasetCatalog(catalog_path)
     store = JsonRunStore(tmp_path / "runs")
-    return catalog, store, DataPilotWorkflow(catalog, store)
+    return catalog, store, DataPilotWorkflow(
+        catalog,
+        store,
+        planner=FakePlanner(),
+        sql_agent=FakeSqlAgent(),
+    )

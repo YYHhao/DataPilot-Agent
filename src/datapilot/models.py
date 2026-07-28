@@ -111,6 +111,7 @@ class AgentState(TypedDict, total=False):
     plan: dict[str, Any]
     schema_profile: dict[str, Any]
     sql_plan: dict[str, Any]
+    sql_attempt: int
     query_results: list[dict[str, Any]]
     analysis: dict[str, Any]
     review: dict[str, Any]
