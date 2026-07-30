@@ -20,12 +20,14 @@ from datapilot.models import (
     AgentState,
     AnalysisPlan,
     ReviewResult,
+    RetrievedSemantic,
     SchemaProfile,
     SqlQueryPlan,
     new_state,
 )
 from datapilot.storage import JsonRunStore
 from datapilot.tracing import trace_node
+from datapilot.retrieval import SemanticRetriever
 
 
 class DataPilotWorkflow:
@@ -35,6 +37,7 @@ class DataPilotWorkflow:
         store: JsonRunStore | None = None,
         planner: PlannerAgent | None = None,
         sql_agent: SqlAgent | None = None,
+        retriever: SemanticRetriever | None = None,
     ):
         self.catalog = catalog or DatasetCatalog(settings.catalog_path)
         self.sources = DataSourceFactory(self.catalog.path.parent)
@@ -42,6 +45,7 @@ class DataPilotWorkflow:
         self.planner = planner or PlannerAgent()
         self.schema_agent = SchemaAgent()
         self.sql_agent = sql_agent or SqlAgent()
+        self.retriever = retriever or SemanticRetriever()
         self.analyst = AnalystAgent()
         self.reviewer = ReviewerAgent()
         self.reporter = ReporterAgent()
@@ -52,6 +56,7 @@ class DataPilotWorkflow:
         builder.add_node("plan", self._plan)
         builder.add_node("approval_gate", self._approval_gate)
         builder.add_node("inspect_schema", self._inspect_schema)
+        builder.add_node("retrieve_semantics", self._retrieve_semantics)
         builder.add_node("plan_sql", self._plan_sql)
         builder.add_node("execute_sql", self._execute_sql)
         builder.add_node("repair_sql", self._repair_sql)
@@ -71,7 +76,8 @@ class DataPilotWorkflow:
             self._gate_route,
             {"schema": "inspect_schema", "persist": "persist"},
         )
-        builder.add_edge("inspect_schema", "plan_sql")
+        builder.add_edge("inspect_schema", "retrieve_semantics")
+        builder.add_edge("retrieve_semantics", "plan_sql")
         builder.add_edge("plan_sql", "execute_sql")
         builder.add_conditional_edges(
             "execute_sql",
@@ -102,8 +108,10 @@ class DataPilotWorkflow:
         return self.sources.create(self.catalog.get(state["dataset_id"]))
 
     def _plan(self, state: AgentState) -> dict:
-        with trace_node(state, "planner"):
+        with trace_node(state, "planner") as event:
             plan = self.planner.run(state["question"])
+            event["model"] = settings.model_name
+            event["token_usage"] = getattr(self.planner, "last_usage", {})
         return {"plan": plan.model_dump(), "trace": state["trace"], "status": "planned"}
 
     @staticmethod
@@ -131,16 +139,36 @@ class DataPilotWorkflow:
         }
 
     def _plan_sql(self, state: AgentState) -> dict:
-        with trace_node(state, "sql_agent"):
+        with trace_node(state, "sql_agent") as event:
             plan = self.sql_agent.run(
                 SchemaProfile.model_validate(state["schema_profile"]),
                 AnalysisPlan.model_validate(state["plan"]),
+                [
+                    RetrievedSemantic.model_validate(item)
+                    for item in state.get("semantic_context", [])
+                ],
             )
+            event["model"] = settings.model_name
+            event["token_usage"] = getattr(self.sql_agent, "last_usage", {})
         return {
             "sql_plan": plan.model_dump(),
             "sql_attempt": 0,
             "trace": state["trace"],
             "status": "sql_planned",
+        }
+
+    def _retrieve_semantics(self, state: AgentState) -> dict:
+        with trace_node(state, "semantic_retriever") as event:
+            matches = self.retriever.retrieve(
+                state["question"],
+                SchemaProfile.model_validate(state["schema_profile"]),
+            )
+            event["retrieved_documents"] = [item.document.id for item in matches]
+            event["scores"] = [item.score for item in matches]
+        return {
+            "semantic_context": [item.model_dump() for item in matches],
+            "trace": state["trace"],
+            "status": "semantics_ready",
         }
 
     def _execute_sql(self, state: AgentState) -> dict:
@@ -207,8 +235,14 @@ class DataPilotWorkflow:
                 AnalysisPlan.model_validate(state["plan"]),
                 SqlQueryPlan.model_validate(state["sql_plan"]),
                 failures,
+                [
+                    RetrievedSemantic.model_validate(item)
+                    for item in state.get("semantic_context", [])
+                ],
             )
             event["attempt"] = state.get("sql_attempt", 0)
+            event["model"] = settings.model_name
+            event["token_usage"] = getattr(self.sql_agent, "last_usage", {})
         return {
             "sql_plan": repaired.model_dump(),
             "trace": state["trace"],
@@ -245,6 +279,10 @@ class DataPilotWorkflow:
                 state["analysis"],
                 state["query_results"],
                 ReviewResult.model_validate(state["review"]),
+                [
+                    RetrievedSemantic.model_validate(item)
+                    for item in state.get("semantic_context", [])
+                ],
             )
         return {
             "report": report,

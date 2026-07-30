@@ -1,0 +1,94 @@
+{
+  "documents": [
+    {
+      "id": "metric.revenue",
+      "kind": "metric",
+      "name": "Revenue",
+      "description": "Gross sales revenue before subtracting discounts. Use SUM(revenue) for total revenue.",
+      "table": "sales",
+      "columns": ["revenue"],
+      "formula": "SUM(sales.revenue)",
+      "aliases": ["sales", "income", "turnover", "销售额", "收入", "营收"]
+    },
+    {
+      "id": "metric.order_count",
+      "kind": "metric",
+      "name": "Order count",
+      "description": "Number of sales records. Each row represents one order in the demo dataset.",
+      "table": "sales",
+      "columns": ["id"],
+      "formula": "COUNT(sales.id)",
+      "aliases": ["orders", "transactions", "订单数", "订单量"]
+    },
+    {
+      "id": "metric.average_order_value",
+      "kind": "metric",
+      "name": "Average order value",
+      "description": "Average gross revenue per order.",
+      "table": "sales",
+      "columns": ["revenue", "id"],
+      "formula": "SUM(sales.revenue) / NULLIF(COUNT(sales.id), 0)",
+      "aliases": ["AOV", "average revenue per order", "客单价"]
+    },
+    {
+      "id": "metric.units_sold",
+      "kind": "metric",
+      "name": "Units sold",
+      "description": "Total quantity of products or services sold.",
+      "table": "sales",
+      "columns": ["quantity"],
+      "formula": "SUM(sales.quantity)",
+      "aliases": ["volume", "quantity sold", "销量", "销售数量"]
+    },
+    {
+      "id": "metric.average_discount",
+      "kind": "metric",
+      "name": "Average discount rate",
+      "description": "Arithmetic mean of the order-level discount fraction. Values range from 0 to 1.",
+      "table": "sales",
+      "columns": ["discount"],
+      "formula": "AVG(sales.discount)",
+      "aliases": ["discount rate", "mean discount", "平均折扣", "折扣率"]
+    },
+    {
+      "id": "dimension.region",
+      "kind": "dimension",
+      "name": "Sales region",
+      "description": "Geographic sales region used for grouping and comparison.",
+      "table": "sales",
+      "columns": ["region"],
+      "formula": "sales.region",
+      "aliases": ["area", "market", "地区", "区域"]
+    },
+    {
+      "id": "dimension.category",
+      "kind": "dimension",
+      "name": "Product category",
+      "description": "Commercial category of the purchased offering.",
+      "table": "sales",
+      "columns": ["category"],
+      "formula": "sales.category",
+      "aliases": ["product type", "segment", "品类", "产品类别"]
+    },
+    {
+      "id": "dimension.order_month",
+      "kind": "dimension",
+      "name": "Order month",
+      "description": "Calendar month derived from order_date for time-series analysis.",
+      "table": "sales",
+      "columns": ["order_date"],
+      "formula": "strftime('%Y-%m', sales.order_date)",
+      "aliases": ["monthly", "month", "月份", "按月"]
+    },
+    {
+      "id": "policy.gross_revenue",
+      "kind": "business_rule",
+      "name": "Revenue interpretation",
+      "description": "The demo revenue field is gross revenue. Do not subtract discount again unless the user explicitly requests an estimated net value.",
+      "table": "sales",
+      "columns": ["revenue", "discount"],
+      "formula": null,
+      "aliases": ["net revenue", "gross revenue", "revenue definition", "收入定义"]
+    }
+  ]
+}

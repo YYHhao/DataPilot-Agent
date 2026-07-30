@@ -9,6 +9,10 @@ Planner 和 Text-to-SQL Agent 均由大模型驱动。项目使用 OpenAI-compat
 - 使用 LangGraph 编排分析工作流；
 - 使用结构化模型输出生成分析计划和 SQL；
 - SQL 失败后由 Agent 根据错误反馈自动修复；
+- 使用 BM25 与 Embedding 混合检索业务指标和字段语义；
+- 通过语义层统一收入、订单量和客单价等业务口径；
+- 提供 MCP Server，将 Schema、语义检索和只读查询暴露为标准工具；
+- 记录节点耗时、模型 Token、检索结果、SQL 和错误类型；
 - 支持 SQLite 和 PostgreSQL；
 - 通过数据集目录和表白名单限制可访问范围；
 - 只允许执行 `SELECT` 或 `WITH` 查询；
@@ -26,7 +30,8 @@ flowchart LR
     P --> G{需要审批?}
     G -->|是且未批准| S[保存等待审批状态]
     G -->|否或已批准| C[Schema Agent]
-    C --> Q[SQL Agent]
+    C --> K[BM25 + Embedding 语义检索]
+    K --> Q[SQL Agent]
     Q --> V[SQL 安全校验与只读执行]
     V --> E{执行成功?}
     E -->|否且未超过重试次数| F[SQL Repair Agent]
@@ -42,6 +47,7 @@ flowchart LR
 | --- | --- |
 | Planner | 判断分析类型、生成步骤并识别高风险意图 |
 | Schema Agent | 读取目录允许的数据表结构 |
+| Semantic Retriever | 混合检索指标定义、维度说明和业务规则 |
 | SQL Agent | 根据问题和 Schema 生成 1～5 条分析 SQL |
 | SQL Repair Agent | 根据数据库错误和安全拒绝原因修复 SQL |
 | SQL Runtime | 独立校验并以只读方式执行 SQL |
@@ -276,6 +282,65 @@ export SALES_DATABASE_URL="postgresql://readonly_user:password@host:5432/sales"
 
 修改目录或环境变量后需要重启 API。生产数据库账号应只拥有目标表或视图的 `SELECT` 权限。
 
+## 业务语义层与混合检索
+
+业务定义保存在 `data/semantic_catalog.json`。每条文档可描述指标、维度或业务规则：
+
+```json
+{
+  "id": "metric.average_order_value",
+  "kind": "metric",
+  "name": "Average order value",
+  "description": "Average gross revenue per order.",
+  "table": "sales",
+  "columns": ["revenue", "id"],
+  "formula": "SUM(sales.revenue) / NULLIF(COUNT(sales.id), 0)",
+  "aliases": ["AOV", "average revenue per order", "客单价"]
+}
+```
+
+工作流在 SQL 生成前执行以下步骤：
+
+1. 根据数据源白名单过滤不可用的表和字段；
+2. 使用 BM25 计算关键词相关性；
+3. 使用 Embedding 计算语义相关性；
+4. 按配置权重融合分数并返回 Top-K；
+5. 将受控公式和业务解释注入 SQL Agent。
+
+Embedding 服务不可用时会退化为 BM25 检索，但 Planner 和 SQL Agent 仍必须调用大模型。
+
+## MCP 工具服务
+
+安装项目后启动 stdio MCP Server：
+
+```bash
+datapilot-mcp
+```
+
+提供四个工具：
+
+| MCP 工具 | 作用 |
+| --- | --- |
+| `list_datasets` | 列出已登记数据集，不暴露连接字符串 |
+| `get_schema` | 获取白名单内的表和字段 |
+| `retrieve_business_context` | 检索指标、维度和业务规则 |
+| `execute_readonly_sql` | 执行经过安全校验的单条只读 SQL |
+
+MCP 客户端配置示例：
+
+```json
+{
+  "mcpServers": {
+    "datapilot": {
+      "command": "datapilot-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+MCP 只是工具协议入口，不会绕过 DataPilot 的目录白名单和 SQL 安全校验。
+
 ## 配置大模型
 
 项目不提供本地规则降级模式。运行分析任务前必须配置支持结构化输出的 OpenAI-compatible 模型：
@@ -333,7 +398,7 @@ pytest
 
 测试配置要求总覆盖率不低于 80%。
 
-运行内置工作流评估：
+运行完整的 60 条中英文 Text-to-SQL 评估：
 
 ```bash
 python scripts/seed_demo.py
@@ -341,6 +406,25 @@ python evaluation/run_eval.py
 ```
 
 工作流评估会真实调用 `.env` 中配置的模型服务，因此会产生模型请求；单元测试使用注入式测试 Agent，不需要联网或 API Key。
+
+首次验证可限制用例数量：
+
+```bash
+python evaluation/run_eval.py --limit 5
+```
+
+评估结果保存在 `evaluation/results.json`，包含：
+
+- 任务成功率；
+- SQL 执行成功率；
+- 表选择准确率；
+- 字段选择准确率；
+- 语义检索命中率；
+- 安全请求拦截率；
+- 平均响应时间；
+- 每条用例的状态、延迟、SQL 尝试次数和召回文档。
+
+真实模型指标应以该文件的实际运行结果为准，不应在未运行评估时写入简历。
 
 运行代码检查：
 
@@ -359,6 +443,10 @@ ruff format --check .
 | `DATAPILOT_MODEL_BASE_URL` | 空 | 兼容服务地址；使用 OpenAI 时留空 |
 | `DATAPILOT_MODEL_TEMPERATURE` | `0` | 模型生成温度 |
 | `DATAPILOT_SQL_MAX_RETRIES` | `2` | SQL 失败后的最大修复次数 |
+| `DATAPILOT_SEMANTIC_CATALOG_PATH` | `data/semantic_catalog.json` | 业务语义目录 |
+| `DATAPILOT_EMBEDDING_MODEL` | `text-embedding-3-small` | 混合检索使用的向量模型 |
+| `DATAPILOT_RETRIEVAL_TOP_K` | `5` | 注入 SQL Agent 的语义文档数 |
+| `DATAPILOT_RETRIEVAL_VECTOR_WEIGHT` | `0.55` | 融合排序中的向量分数权重 |
 | `OPENAI_API_KEY` | 空 | 模型服务 API Key，必填 |
 | `DATAPILOT_EXECUTION_TIMEOUT_SECONDS` | `20` | 查询超时秒数 |
 | `DATAPILOT_MAX_RESULT_ROWS` | `1000` | 单条查询最大返回行数 |
@@ -371,6 +459,7 @@ ruff format --check .
 DataPilot-Agent/
 ├── data/
 │   ├── catalog.json           # 数据源目录
+│   ├── semantic_catalog.json  # 指标、维度和业务口径
 │   └── runs/                  # 任务状态和报告
 ├── evaluation/
 │   ├── dataset.jsonl          # 评估用例
@@ -382,6 +471,9 @@ DataPilot-Agent/
 │   ├── api.py                 # FastAPI 接口
 │   ├── catalog.py             # 数据源目录
 │   ├── datasources.py         # SQLite/PostgreSQL 访问
+│   ├── retrieval.py           # BM25 + Embedding 混合检索
+│   ├── mcp_server.py          # 受控 MCP 工具服务
+│   ├── observability.py       # 模型 Token 用量采集
 │   ├── security.py            # SQL 安全校验
 │   ├── storage.py             # JSON 和 Markdown 持久化
 │   └── workflow.py            # LangGraph 工作流

@@ -10,6 +10,7 @@ def test_workflow_executes_governed_sql_and_persists(enterprise_runtime):
     assert {event["node"] for event in state["trace"]} >= {
         "planner",
         "schema_agent",
+        "semantic_retriever",
         "sql_agent",
         "sql_runtime",
         "analyst",

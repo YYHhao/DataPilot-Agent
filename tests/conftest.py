@@ -36,7 +36,7 @@ class FakePlanner:
 
 
 class FakeSqlAgent:
-    def run(self, profile, plan) -> SqlQueryPlan:
+    def run(self, profile, plan, semantics=None) -> SqlQueryPlan:
         return SqlQueryPlan(
             dialect=profile.driver,
             queries=[
@@ -48,8 +48,13 @@ class FakeSqlAgent:
             ],
         )
 
-    def repair(self, profile, plan, previous, failures) -> SqlQueryPlan:
+    def repair(self, profile, plan, previous, failures, semantics=None) -> SqlQueryPlan:
         return self.run(profile, plan)
+
+
+class FakeRetriever:
+    def retrieve(self, question, profile):
+        return []
 
 
 @pytest.fixture
@@ -116,4 +121,5 @@ def enterprise_runtime(tmp_path):
         store,
         planner=FakePlanner(),
         sql_agent=FakeSqlAgent(),
+        retriever=FakeRetriever(),
     )

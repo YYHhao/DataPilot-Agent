@@ -51,6 +51,24 @@ class SchemaProfile(BaseModel):
     tables: list[TableSchema]
 
 
+class SemanticDocument(BaseModel):
+    id: str
+    kind: Literal["metric", "dimension", "business_rule"]
+    name: str
+    description: str
+    table: str
+    columns: list[str]
+    formula: str | None = None
+    aliases: list[str] = Field(default_factory=list)
+
+
+class RetrievedSemantic(BaseModel):
+    document: SemanticDocument
+    score: float
+    lexical_score: float
+    vector_score: float
+
+
 class AnalysisPlan(BaseModel):
     objective: str
     analysis_type: AnalysisType = AnalysisType.OVERVIEW
@@ -110,6 +128,7 @@ class AgentState(TypedDict, total=False):
     approved: bool
     plan: dict[str, Any]
     schema_profile: dict[str, Any]
+    semantic_context: list[dict[str, Any]]
     sql_plan: dict[str, Any]
     sql_attempt: int
     query_results: list[dict[str, Any]]

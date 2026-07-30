@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from datapilot.models import AnalysisPlan, ReviewResult, SchemaProfile
+from datapilot.models import AnalysisPlan, RetrievedSemantic, ReviewResult, SchemaProfile
 
 
 class ReporterAgent:
@@ -13,6 +13,7 @@ class ReporterAgent:
         analysis: dict,
         query_results: list[dict],
         review: ReviewResult,
+        semantics: list[RetrievedSemantic] | None = None,
     ) -> str:
         schema_lines = "\n".join(
             f"- `{table.name}`: "
@@ -46,6 +47,12 @@ class ReporterAgent:
         issues = "\n".join(f"- {item}" for item in review.issues) or "- No blocking issue"
         steps = "\n".join(f"{index}. {step}" for index, step in enumerate(plan.steps, 1))
         recommendations = "\n".join(f"- {item}" for item in review.recommendations) or "- None"
+        semantic_lines = "\n".join(
+            f"- **{item.document.name}** (`{item.document.id}`): "
+            f"{item.document.description}"
+            + (f" Formula: `{item.document.formula}`" if item.document.formula else "")
+            for item in semantics or []
+        ) or "- No governed business definition matched the request"
         return f"""# Enterprise Data Analysis Report
 
 ## Objective
@@ -59,6 +66,10 @@ class ReporterAgent:
 - Catalog description: {profile.description or "Not provided"}
 
 {schema_lines}
+
+## Retrieved business definitions
+
+{semantic_lines}
 
 ## Execution plan
 

@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     model_base_url: str | None = None
     model_temperature: float = 0
     sql_max_retries: int = 2
+    semantic_catalog_path: Path = Path("data/semantic_catalog.json")
+    embedding_model: str = "text-embedding-3-small"
+    retrieval_top_k: int = 5
+    retrieval_vector_weight: float = 0.55
     execution_timeout_seconds: int = 20
     max_result_rows: int = 1_000
     catalog_path: Path = Path("data/catalog.json")

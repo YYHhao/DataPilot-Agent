@@ -15,6 +15,7 @@ dependencies = [
   "pydantic-settings>=2.5,<3",
   "langgraph>=0.2.60,<1",
   "langchain-openai>=0.3,<1",
+  "mcp>=1,<2",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,7 @@ dev = [
 
 [project.scripts]
 datapilot = "datapilot.cli:main"
+datapilot-mcp = "datapilot.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/datapilot"]
