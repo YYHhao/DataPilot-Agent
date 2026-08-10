@@ -33,10 +33,10 @@ class SqlAgent:
     ) -> SqlQueryPlan:
         return self._invoke(
             self._prompt(profile, plan, semantics or [])
-            + "\n\nThe previous query plan failed. Return a complete corrected plan.\n"
-            + "Previous plan:\n"
+            + "\n\n上一次查询计划执行失败，请返回一份完整的修正计划。\n"
+            + "上一次计划：\n"
             + previous.model_dump_json()
-            + "\nFailures:\n"
+            + "\n失败信息：\n"
             + json.dumps(failures, ensure_ascii=False)
         )
 
@@ -64,14 +64,13 @@ class SqlAgent:
             for item in semantics
         )
         return (
-            "You are a Text-to-SQL agent. Generate 1-5 read-only analytical queries. "
-            f"Dialect: {profile.driver}. Use only the schema below. Never use SELECT *, "
-            "write operations, system tables, comments, or multiple statements. "
-            f"Every detail query must be bounded and results are capped at "
-            f"{settings.max_result_rows} rows. Query IDs must be Q1, Q2, ...\n\n"
-            f"Objective: {plan.objective}\nAnalysis type: {plan.analysis_type.value}\n"
-            f"Plan: {plan.steps}\nSchema:\n{schema}\n\n"
-            "Retrieved governed business semantics (prefer these definitions and formulas; "
-            "do not invent alternatives):\n"
-            f"{semantic_context or 'No matching governed definition was found.'}"
+            "你是 Text-to-SQL 智能体，请生成 1～5 条只读分析查询。"
+            f"数据库方言：{profile.driver}。只能使用下方给出的结构。严禁 SELECT *、"
+            "写操作、系统表、SQL 注释或多语句。purpose 字段必须使用简体中文。"
+            f"明细查询必须限制范围，结果最多返回 {settings.max_result_rows} 行。"
+            "查询 ID 必须依次为 Q1、Q2……\n\n"
+            f"分析目标：{plan.objective}\n分析类型：{plan.analysis_type.value}\n"
+            f"分析计划：{plan.steps}\n数据库结构：\n{schema}\n\n"
+            "检索到的受治理业务语义（优先采用这些定义和公式，不得另行虚构）：\n"
+            f"{semantic_context or '未找到匹配的受治理业务定义。'}"
         )

@@ -31,11 +31,11 @@ class SQLiteDataSource(DataSource):
     def __init__(self, definition: DatasetDefinition, catalog_dir: Path):
         super().__init__(definition)
         if not definition.database:
-            raise ValueError(f"SQLite dataset {definition.dataset_id} requires 'database'")
+            raise ValueError(f"SQLite 数据集 {definition.dataset_id} 必须配置 'database'")
         path = Path(definition.database)
         self.path = path if path.is_absolute() else (catalog_dir / path).resolve()
         if not self.path.is_file():
-            raise FileNotFoundError(f"SQLite database not found: {self.path}")
+            raise FileNotFoundError(f"未找到 SQLite 数据库：{self.path}")
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(f"{self.path.as_uri()}?mode=ro", uri=True)
@@ -52,7 +52,7 @@ class SQLiteDataSource(DataSource):
             }
             for table in self.definition.allowed_tables:
                 if table not in existing:
-                    raise ValueError(f"Allowed table does not exist: {table}")
+                    raise ValueError(f"授权的数据表不存在：{table}")
                 columns = [
                     ColumnSchema(
                         name=row[1],
@@ -102,12 +102,12 @@ class PostgresDataSource(DataSource):
         super().__init__(definition)
         if not definition.connection_env:
             raise ValueError(
-                f"PostgreSQL dataset {definition.dataset_id} requires 'connection_env'"
+                f"PostgreSQL 数据集 {definition.dataset_id} 必须配置 'connection_env'"
             )
         self.dsn = os.getenv(definition.connection_env)
         if not self.dsn:
             raise RuntimeError(
-                f"Required database environment variable is missing: {definition.connection_env}"
+                f"缺少必需的数据库环境变量：{definition.connection_env}"
             )
 
     @staticmethod
@@ -115,7 +115,7 @@ class PostgresDataSource(DataSource):
         try:
             import psycopg
         except ImportError as exc:
-            raise RuntimeError("Install the 'postgres' extra for PostgreSQL datasets") from exc
+            raise RuntimeError("使用 PostgreSQL 数据集前请安装 'postgres' 可选依赖") from exc
         return psycopg
 
     def inspect_schema(self) -> SchemaProfile:
@@ -139,7 +139,7 @@ class PostgresDataSource(DataSource):
                         for row in cursor.fetchall()
                     ]
                     if not columns:
-                        raise ValueError(f"Allowed table does not exist: {table}")
+                        raise ValueError(f"授权的数据表不存在：{table}")
                     tables.append(TableSchema(name=table, columns=columns))
         return SchemaProfile(
             dataset_id=self.definition.dataset_id,
@@ -183,7 +183,7 @@ class DataSourceFactory:
             return SQLiteDataSource(definition, self.catalog_dir)
         if definition.driver == "postgresql":
             return PostgresDataSource(definition)
-        raise ValueError(f"Unsupported data source driver: {definition.driver}")
+        raise ValueError(f"不支持的数据源驱动：{definition.driver}")
 
 
 def _sqlite_readonly_authorizer(

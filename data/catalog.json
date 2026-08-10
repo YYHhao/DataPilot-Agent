@@ -2,11 +2,29 @@
   "datasets": [
     {
       "dataset_id": "demo_sales",
-      "name": "Demo Sales Warehouse",
-      "description": "Synthetic order-level sales data for local evaluation.",
+      "name": "演示销售数据仓库",
+      "description": "用于本地演示和评估的合成订单级销售数据。",
       "driver": "sqlite",
       "database": "demo.sqlite",
       "allowed_tables": ["sales"]
+    },
+    {
+      "dataset_id": "olist",
+      "name": "Olist 巴西电商数据集",
+      "description": "包含订单、客户、商品、卖家、支付、配送、评价和地理位置数据。",
+      "driver": "postgresql",
+      "connection_env": "OLIST_DATABASE_URL",
+      "allowed_tables": [
+        "customers",
+        "orders",
+        "order_items",
+        "order_payments",
+        "order_reviews",
+        "products",
+        "sellers",
+        "geolocation",
+        "product_category_translation"
+      ]
     }
   ]
 }

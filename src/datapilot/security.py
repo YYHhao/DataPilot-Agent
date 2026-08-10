@@ -18,17 +18,17 @@ FORBIDDEN_FUNCTIONS = re.compile(
 def validate_readonly_sql(sql: str, allowed_tables: list[str]) -> None:
     compact = sql.strip()
     if not compact:
-        raise ValueError("SQL query cannot be empty")
+        raise ValueError("SQL 查询不能为空")
     if compact.count(";") > int(compact.endswith(";")):
-        raise ValueError("Multiple SQL statements are forbidden")
+        raise ValueError("禁止执行多条 SQL 语句")
     if not re.match(r"^(select|with)\b", compact, re.IGNORECASE):
-        raise ValueError("Only SELECT or WITH queries are allowed")
+        raise ValueError("只允许执行 SELECT 或 WITH 查询")
     if FORBIDDEN_SQL.search(compact):
-        raise ValueError("SQL contains a forbidden operation")
+        raise ValueError("SQL 包含被禁止的操作")
     if "--" in compact or "/*" in compact or "*/" in compact:
-        raise ValueError("SQL comments are forbidden")
+        raise ValueError("SQL 中禁止使用注释")
     if FORBIDDEN_FUNCTIONS.search(compact):
-        raise ValueError("SQL contains a forbidden function")
+        raise ValueError("SQL 包含被禁止的函数")
     referenced = {
         match.group(1).strip('"').lower()
         for match in re.finditer(
@@ -46,4 +46,4 @@ def validate_readonly_sql(sql: str, allowed_tables: list[str]) -> None:
     allowed = {table.lower() for table in allowed_tables}
     unauthorized = referenced - allowed - cte_names
     if unauthorized:
-        raise ValueError(f"SQL references unauthorized tables: {sorted(unauthorized)}")
+        raise ValueError(f"SQL 引用了未授权的数据表：{sorted(unauthorized)}")

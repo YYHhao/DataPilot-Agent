@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,7 @@ class Settings(BaseSettings):
     model_name: str = "gpt-4.1-mini"
     model_base_url: str | None = None
     model_temperature: float = 0
+    openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     sql_max_retries: int = 2
     semantic_catalog_path: Path = Path("data/semantic_catalog.json")
     embedding_model: str = "text-embedding-3-small"

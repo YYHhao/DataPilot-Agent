@@ -5,7 +5,7 @@ def test_workflow_executes_governed_sql_and_persists(enterprise_runtime):
     _, store, workflow = enterprise_runtime
     state = workflow.run("test_sales", "Rank regions by revenue")
     assert state["status"] == "completed"
-    assert "Enterprise Data Analysis Report" in state["report"]
+    assert "企业数据分析报告" in state["report"]
     assert state["query_results"][0]["rows"] == [[12]]
     assert {event["node"] for event in state["trace"]} >= {
         "planner",

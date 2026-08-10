@@ -1,82 +1,84 @@
 # DataPilot Agent
 
-DataPilot Agent 是一个面向企业数据源的多 Agent 数据分析示例项目。用户提交自然语言问题和已登记的 `dataset_id`，系统会检查数据源结构、生成只读 SQL、执行分析、复核证据，并生成可追溯的 Markdown 报告。
+DataPilot Agent 是一个面向企业数据源的多 Agent 数据分析项目。用户提交已登记的 `dataset_id` 和自然语言问题后，系统会读取授权范围内的数据库结构、检索业务口径、生成并执行只读 SQL、复核查询证据，最后输出可追溯的中文 Markdown 报告。
 
-Planner 和 Text-to-SQL Agent 均由大模型驱动。项目使用 OpenAI-compatible 接口，可连接 OpenAI 或其他兼容服务，并可将数据源配置为 SQLite 或 PostgreSQL。
+项目当前支持 SQLite 和 PostgreSQL，提供 CLI、FastAPI 和 MCP 三种入口。Planner 与 Text-to-SQL Agent 通过 OpenAI-compatible 接口调用大模型；表白名单、SQL 只读校验、查询超时、结果行数限制和风险审批由确定性代码执行。
+
+> 当前版本：`0.2.0`。本项目适合本地学习、功能验证和单实例原型演示，尚不是开箱即用的多租户生产平台。
 
 ## 核心能力
 
-- 使用 LangGraph 编排分析工作流；
-- 使用结构化模型输出生成分析计划和 SQL；
-- SQL 失败后由 Agent 根据错误反馈自动修复；
-- 使用 BM25 与 Embedding 混合检索业务指标和字段语义；
-- 通过语义层统一收入、订单量和客单价等业务口径；
-- 提供 MCP Server，将 Schema、语义检索和只读查询暴露为标准工具；
-- 记录节点耗时、模型 Token、检索结果、SQL 和错误类型；
-- 支持 SQLite 和 PostgreSQL；
-- 通过数据集目录和表白名单限制可访问范围；
-- 只允许执行 `SELECT` 或 `WITH` 查询；
-- 拒绝写操作、危险函数、多语句和 SQL 注释；
-- 限制查询超时和最大返回行数；
-- 对高风险请求设置人工审批节点；
-- 保存运行状态、执行轨迹和 Markdown 报告；
-- 提供 FastAPI、CLI、Docker、测试和离线评估入口。
+- 使用 LangGraph 编排 Planner、Schema、SQL、Analyst、Reviewer 和 Reporter；
+- 使用结构化模型输出生成分析计划及 1～5 条分析 SQL；
+- SQL 执行失败后，根据数据库错误自动生成修正计划；
+- 使用 BM25 与 Embedding 混合检索指标、维度和业务规则；
+- 支持 SQLite 与 PostgreSQL；
+- 通过数据集目录和表白名单限制 Agent 可访问的数据；
+- 只允许单条 `SELECT` 或 `WITH` 查询；
+- 拒绝写操作、危险函数、SQL 注释和多语句；
+- 限制查询时间和单次最大返回行数；
+- 对删除、覆盖、批量导出和外部发送等高风险意图设置审批节点；
+- 记录节点耗时、模型 Token、检索结果、SQL、错误和执行轨迹；
+- 保存 JSON 任务状态与中文 Markdown 报告；
+- 提供 FastAPI、CLI、MCP Server、Docker、测试和离线评估入口。
 
 ## 工作流程
 
 ```mermaid
 flowchart LR
-    U[问题和 dataset_id] --> P[Planner]
-    P --> G{需要审批?}
-    G -->|是且未批准| S[保存等待审批状态]
-    G -->|否或已批准| C[Schema Agent]
-    C --> K[BM25 + Embedding 语义检索]
-    K --> Q[SQL Agent]
-    Q --> V[SQL 安全校验与只读执行]
-    V --> E{执行成功?}
-    E -->|否且未超过重试次数| F[SQL Repair Agent]
+    U[自然语言问题和 dataset_id] --> P[Planner]
+    P --> G{是否需要审批}
+    G -->|需要且未批准| W[保存等待审批状态]
+    G -->|不需要或已批准| S[Schema Agent]
+    S --> K[业务语义混合检索]
+    K --> Q[Text-to-SQL Agent]
+    Q --> V[安全校验与只读执行]
+    V --> E{执行成功}
+    E -->|失败且可重试| F[SQL Repair Agent]
     F --> V
-    E -->|是或重试结束| A[Analyst]
+    E -->|成功或重试结束| A[Analyst]
     A --> R[Reviewer]
     R --> O[生成并保存报告]
 ```
 
-各组件职责：
-
 | 组件 | 职责 |
 | --- | --- |
-| Planner | 判断分析类型、生成步骤并识别高风险意图 |
-| Schema Agent | 读取目录允许的数据表结构 |
-| Semantic Retriever | 混合检索指标定义、维度说明和业务规则 |
-| SQL Agent | 根据问题和 Schema 生成 1～5 条分析 SQL |
-| SQL Repair Agent | 根据数据库错误和安全拒绝原因修复 SQL |
-| SQL Runtime | 独立校验并以只读方式执行 SQL |
-| Analyst | 从成功执行的查询中整理证据和发现 |
-| Reviewer | 检查执行结果、表权限和证据链完整性 |
-| Reporter | 生成包含 SQL、结果摘要和复核结论的报告 |
+| Planner | 判断分析类型并生成分析目标与步骤 |
+| Schema Agent | 读取数据目录允许访问的表结构 |
+| Semantic Retriever | 检索指标定义、维度说明和业务规则 |
+| SQL Agent | 根据问题、Schema 和业务口径生成只读 SQL |
+| SQL Repair Agent | 根据数据库错误或安全拒绝原因修复 SQL |
+| SQL Runtime | 校验并以只读方式执行 SQL |
+| Analyst | 将成功执行的查询整理为证据和发现 |
+| Reviewer | 检查执行状态、数据权限和证据链 |
+| Reporter | 生成包含 SQL、结果预览和复核结论的中文报告 |
 
 ## 环境要求
 
-- Miniconda 或 Anaconda；
+- Python `>=3.11,<3.15`；
+- Miniconda、Anaconda 或其他 Python 虚拟环境；
 - Windows PowerShell、Linux 或 macOS；
-- Python 3.11～3.14；
-- Docker 可选；
-- PostgreSQL 可选。
+- Docker Desktop 或 Docker Engine，可选；
+- PostgreSQL，可选，也可以通过 Docker 运行。
 
-以下命令均需在项目根目录 `DataPilot-Agent` 中执行。
+下文命令默认在项目根目录执行：
 
-## 快速开始
+```text
+D:\pythonDemo\agent\DataPilot-Agent
+```
 
-### 1. 创建 Conda 环境
+## 快速开始：SQLite 演示
 
-Windows、Linux 和 macOS 使用相同命令：
+这是验证 DataPilot 安装和模型配置的最短路径。
+
+### 1. 创建并激活环境
 
 ```bash
 conda create -n datapilot python=3.11 -y
 conda activate datapilot
 ```
 
-如果出现 `conda activate` 不可用，请先执行 `conda init`，关闭并重新打开终端。
+如果 `conda activate` 不可用，先执行 `conda init`，然后关闭并重新打开终端。
 
 ### 2. 安装依赖和项目
 
@@ -85,9 +87,16 @@ python -m pip install -r requirements.txt
 python -m pip install -e . --no-deps
 ```
 
-第一条命令安装第三方依赖。第二条以可编辑模式安装 DataPilot 本身，使 `src/datapilot` 可被导入，并注册 `datapilot` CLI 命令；`--no-deps` 用于避免重复解析依赖。
+第二条命令以可编辑模式注册 `src/datapilot`，同时安装以下终端入口：
 
-### 3. 创建配置文件
+```text
+datapilot
+datapilot-mcp
+```
+
+代码仍保留在项目目录，修改源码后通常不需要重新安装。
+
+### 3. 创建模型配置
 
 Windows PowerShell：
 
@@ -95,34 +104,45 @@ Windows PowerShell：
 Copy-Item .env.example .env
 ```
 
-Linux/macOS：
+Linux 或 macOS：
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env`，至少填写模型 API Key：
+编辑 `.env`：
 
 ```dotenv
 OPENAI_API_KEY=your-api-key
-DATAPILOT_MODEL_NAME=gpt-4.1-mini
-```
-
-如使用其他 OpenAI-compatible 服务，还需设置：
-
-```dotenv
+DATAPILOT_MODEL_NAME=your-model-name
 DATAPILOT_MODEL_BASE_URL=https://your-provider.example/v1
 ```
 
-### 4. 初始化演示数据库
+使用 OpenAI 官方接口时，可将 `DATAPILOT_MODEL_BASE_URL` 留空。模型必须兼容 OpenAI Chat Completions，并支持结构化输出。
+
+### 4. 初始化演示数据
 
 ```bash
 python scripts/seed_demo.py
 ```
 
-成功后会生成 `data/demo.sqlite`，其中包含演示数据表 `sales`。
+该命令生成 `data/demo.sqlite`，其中包含 `sales` 演示表。
 
-### 5. 启动 API
+### 5. 运行 CLI
+
+```bash
+datapilot demo_sales "按地区分析销售收入并从高到低排序"
+```
+
+CLI 会在终端输出报告，并将任务状态和报告保存到 `data/runs/`。
+
+如果提示找不到 `datapilot`，确认提示符中已经出现 `(datapilot)`，然后重新执行：
+
+```bash
+python -m pip install -e . --no-deps
+```
+
+### 6. 启动 API
 
 ```bash
 uvicorn datapilot.api:app --reload
@@ -130,21 +150,172 @@ uvicorn datapilot.api:app --reload
 
 启动后访问：
 
-- Swagger API 文档：<http://127.0.0.1:8000/docs>
+- Swagger 文档：<http://127.0.0.1:8000/docs>
 - 健康检查：<http://127.0.0.1:8000/health>
 - 数据集列表：<http://127.0.0.1:8000/v1/datasets>
 
-如端口被占用，可指定其他端口：
+访问根地址 `/` 返回 `404` 属于正常现象；当前项目没有定义首页路由。
+
+## Olist + PostgreSQL 完整示例
+
+项目已提供 Olist CSV 导入脚本，适合测试多表 JOIN、月度趋势、商品类别、客户地区、支付方式、配送时效和评价分析。
+
+### 1. 准备 CSV
+
+将 Olist 文件放入：
+
+```text
+data/olist_csv/
+├── olist_customers_dataset.csv
+├── olist_geolocation_dataset.csv
+├── olist_order_items_dataset.csv
+├── olist_order_payments_dataset.csv
+├── olist_order_reviews_dataset.csv
+├── olist_orders_dataset.csv
+├── olist_products_dataset.csv
+├── olist_sellers_dataset.csv
+└── product_category_name_translation.csv
+```
+
+该目录已被 `.gitignore` 忽略，避免误提交大型数据文件。
+
+### 2. 使用 Docker 创建 PostgreSQL
+
+确保 Docker Desktop 已启动：
+
+```powershell
+docker pull postgres:17
+
+docker run --name olist-postgres `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_PASSWORD=your-admin-password `
+  -e POSTGRES_DB=olist `
+  -p 5432:5432 `
+  -v olist_postgres_data:/var/lib/postgresql/data `
+  --restart unless-stopped `
+  -d postgres:17
+```
+
+检查容器：
+
+```powershell
+docker ps
+docker logs olist-postgres
+```
+
+日志出现 `database system is ready to accept connections` 表示数据库已经启动。
+
+### 3. 导入 Olist CSV
+
+确保已经安装 PostgreSQL 驱动：
+
+```powershell
+python -m pip install "psycopg[binary]>=3.2,<4"
+```
+
+在当前 PowerShell 设置管理员连接地址：
+
+```powershell
+$env:OLIST_ADMIN_DATABASE_URL = "postgresql://postgres:your-admin-password@localhost:5432/olist"
+```
+
+执行导入：
+
+```powershell
+python scripts/import_olist_postgres.py
+```
+
+脚本会创建9张表、批量导入 CSV、创建常用索引并执行 `ANALYZE`。如果已有同名表且需要重新导入：
+
+```powershell
+python scripts/import_olist_postgres.py --replace
+```
+
+`--replace` 会删除并重建 Olist 同名表，仅在确认需要重新导入时使用。
+
+### 4. 创建只读账户
+
+```powershell
+docker exec -it olist-postgres psql -U postgres -d olist
+```
+
+在 `psql` 中执行：
+
+```sql
+CREATE USER datapilot_reader WITH PASSWORD 'your-reader-password';
+
+GRANT CONNECT ON DATABASE olist TO datapilot_reader;
+GRANT USAGE ON SCHEMA public TO datapilot_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO datapilot_reader;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT SELECT ON TABLES TO datapilot_reader;
+
+ALTER ROLE datapilot_reader SET default_transaction_read_only = on;
+ALTER ROLE datapilot_reader SET statement_timeout = '20s';
+```
+
+退出：
+
+```sql
+\q
+```
+
+### 5. 配置并测试连接
+
+`data/catalog.json` 已登记 `olist` 数据集。运行 CLI 前，在同一个 PowerShell 设置只读连接：
+
+```powershell
+$env:OLIST_DATABASE_URL = "postgresql://datapilot_reader:your-reader-password@localhost:5432/olist"
+```
+
+运行：
+
+```powershell
+datapilot olist "分析数据集中全部历史月份的订单数量和销售收入变化，不要使用当前日期或最近24个月作为筛选条件"
+```
+
+Olist 数据主要是历史数据。若只提问“最近24个月”，或者模型擅自添加相对于当前日期的过滤条件，查询可能返回0行。因此建议在问题中明确“全部历史数据”或指定实际年份。
+
+管理员变量 `OLIST_ADMIN_DATABASE_URL` 只用于数据导入；日常分析应使用权限受限的 `OLIST_DATABASE_URL`。
+
+### 6. Docker 常用命令
+
+```powershell
+docker stop olist-postgres
+docker start olist-postgres
+docker ps -a --filter "name=olist-postgres"
+```
+
+数据库保存在 Docker volume `olist_postgres_data` 中，停止容器不会删除数据。
+
+## 使用 CLI
+
+基本格式：
 
 ```bash
-uvicorn datapilot.api:app --reload --port 8001
+datapilot <dataset_id> "<自然语言问题>"
 ```
+
+示例：
+
+```bash
+datapilot demo_sales "分析各地区的销售收入"
+datapilot olist "按商品类别统计销售额最高的十个类别"
+datapilot olist "比较各支付方式的订单量和平均支付金额"
+```
+
+显式批准高风险请求：
+
+```bash
+datapilot demo_sales "导出全部客户记录" --approved
+```
+
+审批只允许工作流继续运行，不会提升数据库权限，也不会绕过只读 SQL 校验。
 
 ## 使用 API
 
-以下 PowerShell 示例假设 API 运行在 `http://127.0.0.1:8000`。
-
-### 查看可用数据集
+### 查看数据集
 
 ```powershell
 Invoke-RestMethod -Method Get `
@@ -156,7 +327,7 @@ Invoke-RestMethod -Method Get `
 ```powershell
 $body = @{
   dataset_id = "demo_sales"
-  question   = "Analyze the monthly revenue trend"
+  question   = "按地区分析销售收入"
   approved   = $false
 } | ConvertTo-Json
 
@@ -168,130 +339,89 @@ $run = Invoke-RestMethod -Method Post `
 $run
 ```
 
-正常任务返回 `completed`。主要字段包括：
+主要响应字段：
 
 | 字段 | 含义 |
 | --- | --- |
-| `run_id` | 任务的唯一标识 |
+| `run_id` | 任务唯一标识 |
 | `dataset_id` | 使用的数据集 |
-| `status` | 当前状态 |
-| `report` | Markdown 分析报告 |
-| `trace` | 各工作流节点的执行轨迹 |
-| `artifacts` | 报告等产物的下载地址 |
+| `status` | 当前工作流状态 |
+| `report` | 中文 Markdown 报告 |
+| `trace` | 节点执行轨迹、耗时和模型 Token |
+| `artifacts` | 报告下载地址 |
 
-### 查询已有任务
+### 查询任务和下载报告
 
 ```powershell
 Invoke-RestMethod -Method Get `
   -Uri "http://127.0.0.1:8000/v1/runs/$($run.run_id)"
-```
 
-### 下载报告
-
-```powershell
 Invoke-WebRequest `
   -Uri "http://127.0.0.1:8000/v1/runs/$($run.run_id)/artifacts/report" `
   -OutFile "report.md"
 ```
 
-### 审批高风险任务
+### 审批任务
 
-包含批量导出、删除、覆盖或外部发送等意图的请求会停在 `awaiting_approval` 状态。
+当任务状态为 `awaiting_approval` 时：
 
 ```powershell
-$body = @{
-  dataset_id = "demo_sales"
-  question   = "Export all customer records"
-  approved   = $false
-} | ConvertTo-Json
-
-$riskRun = Invoke-RestMethod -Method Post `
-  -Uri "http://127.0.0.1:8000/v1/runs" `
-  -ContentType "application/json" `
-  -Body $body
-
 Invoke-RestMethod -Method Post `
-  -Uri "http://127.0.0.1:8000/v1/runs/$($riskRun.run_id)/approve"
+  -Uri "http://127.0.0.1:8000/v1/runs/$($run.run_id)/approve"
 ```
 
-审批只允许工作流继续执行，不会提升数据库权限。SQL Runtime 始终拒绝数据修改操作。
+## 数据源目录
 
-## 使用 CLI
-
-完成安装和演示数据库初始化后，可直接运行：
-
-```bash
-datapilot demo_sales "Analyze revenue by region"
-```
-
-显式批准高风险任务：
-
-```bash
-datapilot demo_sales "Export all customer records" --approved
-```
-
-CLI 会在终端输出报告，并将状态与报告保存到 `data/runs/`。
-
-## 配置数据源
-
-数据源统一登记在 `data/catalog.json`。API 请求只能提交 `dataset_id`，不能传入数据库连接字符串或临时修改表白名单。
+数据源登记在 `data/catalog.json`。客户端只能提交 `dataset_id`，不能在请求中传入连接字符串或临时修改表白名单。
 
 ### SQLite
 
 ```json
 {
   "dataset_id": "demo_sales",
-  "name": "Demo Sales Warehouse",
-  "description": "Synthetic order-level sales data for local evaluation.",
+  "name": "演示销售数据仓库",
+  "description": "用于本地演示和评估的合成订单级销售数据。",
   "driver": "sqlite",
   "database": "demo.sqlite",
   "allowed_tables": ["sales"]
 }
 ```
 
-相对数据库路径以 `catalog.json` 所在目录为基准。数据库文件必须已经存在。
+相对数据库路径以 `catalog.json` 所在目录为基准。
 
 ### PostgreSQL
-
-在 `data/catalog.json` 的 `datasets` 数组中添加：
 
 ```json
 {
   "dataset_id": "production_sales",
-  "name": "Production Sales Warehouse",
-  "description": "Approved sales mart",
+  "name": "生产销售数据集",
+  "description": "经过授权的销售分析数据。",
   "driver": "postgresql",
   "connection_env": "SALES_DATABASE_URL",
   "allowed_tables": ["orders", "order_items", "products"]
 }
 ```
 
-然后设置目录中指定的环境变量。
-
-Windows PowerShell：
+本地 PowerShell 设置连接变量：
 
 ```powershell
-$env:SALES_DATABASE_URL = "postgresql://readonly_user:password@host:5432/sales"
+$env:SALES_DATABASE_URL = "postgresql://readonly_user:password@localhost:5432/sales"
 ```
 
-Linux/macOS：
+当前 PostgreSQL 数据源通过 `os.getenv()` 读取 `connection_env` 指定的变量。因此本地 CLI 运行时，需要在启动命令的同一终端设置连接变量；仅把自定义数据库变量写入 `.env` 不一定会进入当前进程环境。Docker Compose 的 `env_file` 会将 `.env` 变量注入容器。
 
-```bash
-export SALES_DATABASE_URL="postgresql://readonly_user:password@host:5432/sales"
-```
+生产数据库应使用只读账户，并仅授予白名单表或视图的 `SELECT` 权限。
 
-修改目录或环境变量后需要重启 API。生产数据库账号应只拥有目标表或视图的 `SELECT` 权限。
+## 业务语义目录
 
-## 业务语义层与混合检索
-
-业务定义保存在 `data/semantic_catalog.json`。每条文档可描述指标、维度或业务规则：
+业务定义保存在 `data/semantic_catalog.json`。每条文档描述一个指标、维度或业务规则：
 
 ```json
 {
   "id": "metric.average_order_value",
   "kind": "metric",
-  "name": "Average order value",
-  "description": "Average gross revenue per order.",
+  "name": "平均客单价",
+  "description": "每个订单的平均销售总收入。",
   "table": "sales",
   "columns": ["revenue", "id"],
   "formula": "SUM(sales.revenue) / NULLIF(COUNT(sales.id), 0)",
@@ -299,30 +429,30 @@ export SALES_DATABASE_URL="postgresql://readonly_user:password@host:5432/sales"
 }
 ```
 
-工作流在 SQL 生成前执行以下步骤：
+检索过程：
 
-1. 根据数据源白名单过滤不可用的表和字段；
+1. 按当前数据集表白名单过滤语义文档；
 2. 使用 BM25 计算关键词相关性；
 3. 使用 Embedding 计算语义相关性；
-4. 按配置权重融合分数并返回 Top-K；
+4. 融合分数并返回 Top-K；
 5. 将受控公式和业务解释注入 SQL Agent。
 
-Embedding 服务不可用时会退化为 BM25 检索，但 Planner 和 SQL Agent 仍必须调用大模型。
+Embedding 服务不可用时会退化为 BM25，但 Planner 和 SQL Agent 仍需要可用的大模型服务。新增数据集时，应同步补充该数据集的指标和业务规则，否则报告会显示“未找到与请求匹配的受治理业务定义”。
 
-## MCP 工具服务
+## MCP Server
 
-安装项目后启动 stdio MCP Server：
+启动 stdio MCP Server：
 
 ```bash
 datapilot-mcp
 ```
 
-提供四个工具：
+提供以下工具：
 
-| MCP 工具 | 作用 |
+| 工具 | 作用 |
 | --- | --- |
-| `list_datasets` | 列出已登记数据集，不暴露连接字符串 |
-| `get_schema` | 获取白名单内的表和字段 |
+| `list_datasets` | 列出已登记数据集，不暴露数据库凭据 |
+| `get_schema` | 获取白名单中的表和字段 |
 | `retrieve_business_context` | 检索指标、维度和业务规则 |
 | `execute_readonly_sql` | 执行经过安全校验的单条只读 SQL |
 
@@ -339,32 +469,9 @@ MCP 客户端配置示例：
 }
 ```
 
-MCP 只是工具协议入口，不会绕过 DataPilot 的目录白名单和 SQL 安全校验。
+## Docker 运行 DataPilot API
 
-## 配置大模型
-
-项目不提供本地规则降级模式。运行分析任务前必须配置支持结构化输出的 OpenAI-compatible 模型：
-
-```dotenv
-DATAPILOT_MODEL_NAME=gpt-4.1-mini
-OPENAI_API_KEY=your-api-key
-```
-
-使用其他兼容服务时增加：
-
-```dotenv
-DATAPILOT_MODEL_NAME=your-model-name
-DATAPILOT_MODEL_BASE_URL=https://your-provider.example/v1
-OPENAI_API_KEY=your-provider-key
-```
-
-保存后重启 API。模型负责分析规划和 SQL 生成；风险审批、表白名单、只读校验、超时和结果行数限制由确定性代码执行。
-
-## Docker 运行
-
-确保 Docker Desktop 或 Docker Engine 已启动。
-
-Windows PowerShell：
+项目根目录已有 `Dockerfile` 和 `docker-compose.yml`：
 
 ```powershell
 Copy-Item .env.example .env
@@ -372,111 +479,92 @@ python scripts/seed_demo.py
 docker compose up --build
 ```
 
-Linux/macOS：
+服务地址：<http://127.0.0.1:8000>。
 
-```bash
-cp .env.example .env
-python scripts/seed_demo.py
-docker compose up --build
-```
+停止：
 
-服务地址为 <http://127.0.0.1:8000>。停止服务：
-
-```bash
+```powershell
 docker compose down
 ```
 
-Compose 会把本地 `data` 目录挂载到容器，因此任务状态和报告会保存在宿主机。
+Compose 会把本地 `data` 目录挂载到容器，因此任务状态和报告保存在宿主机。若 DataPilot API 也运行在容器中，连接另一个 PostgreSQL 容器时不能使用 `localhost`；应将两个服务加入同一 Docker 网络，并使用 PostgreSQL 服务名作为主机名。
 
-## 测试和评估
+## 配置项
 
-运行测试：
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | 空 | 模型服务密钥，运行分析任务前必须配置 |
+| `DATAPILOT_MODEL_NAME` | `gpt-4.1-mini` | 模型名称 |
+| `DATAPILOT_MODEL_BASE_URL` | 空 | OpenAI-compatible 服务地址 |
+| `DATAPILOT_MODEL_TEMPERATURE` | `0` | 模型生成温度 |
+| `DATAPILOT_SQL_MAX_RETRIES` | `2` | SQL 失败后的最大修复次数 |
+| `DATAPILOT_SEMANTIC_CATALOG_PATH` | `data/semantic_catalog.json` | 业务语义目录 |
+| `DATAPILOT_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding 模型名称 |
+| `DATAPILOT_RETRIEVAL_TOP_K` | `5` | 注入 SQL Agent 的语义文档数 |
+| `DATAPILOT_RETRIEVAL_VECTOR_WEIGHT` | `0.55` | 混合检索中的向量权重 |
+| `DATAPILOT_EXECUTION_TIMEOUT_SECONDS` | `20` | SQL 查询超时秒数 |
+| `DATAPILOT_MAX_RESULT_ROWS` | `1000` | 单条查询最大返回行数 |
+| `DATAPILOT_CATALOG_PATH` | `data/catalog.json` | 数据集目录 |
+| `DATAPILOT_RUN_DIR` | `data/runs` | 任务状态和报告目录 |
+
+## 测试与评估
+
+运行完整测试：
 
 ```bash
 pytest
 ```
 
-测试配置要求总覆盖率不低于 80%。
+项目要求总测试覆盖率不低于 80%。单元测试使用注入式测试 Agent，不需要联网或 API Key。
 
-运行完整的 60 条中英文 Text-to-SQL 评估：
+运行 Text-to-SQL 评估：
 
 ```bash
 python scripts/seed_demo.py
 python evaluation/run_eval.py
 ```
 
-工作流评估会真实调用 `.env` 中配置的模型服务，因此会产生模型请求；单元测试使用注入式测试 Agent，不需要联网或 API Key。
-
-首次验证可限制用例数量：
+首次验证可以限制用例数量：
 
 ```bash
 python evaluation/run_eval.py --limit 5
 ```
 
-评估结果保存在 `evaluation/results.json`，包含：
+评估会真实调用已配置的模型服务，结果写入 `evaluation/results.json`。
 
-- 任务成功率；
-- SQL 执行成功率；
-- 表选择准确率；
-- 字段选择准确率；
-- 语义检索命中率；
-- 安全请求拦截率；
-- 平均响应时间；
-- 每条用例的状态、延迟、SQL 尝试次数和召回文档。
-
-真实模型指标应以该文件的实际运行结果为准，不应在未运行评估时写入简历。
-
-运行代码检查：
+代码检查：
 
 ```bash
 ruff check .
 ruff format --check .
 ```
 
-## 配置项
-
-配置读取自 `.env` 或系统环境变量。
-
-| 环境变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `DATAPILOT_MODEL_NAME` | `gpt-4.1-mini` | 使用的模型名称 |
-| `DATAPILOT_MODEL_BASE_URL` | 空 | 兼容服务地址；使用 OpenAI 时留空 |
-| `DATAPILOT_MODEL_TEMPERATURE` | `0` | 模型生成温度 |
-| `DATAPILOT_SQL_MAX_RETRIES` | `2` | SQL 失败后的最大修复次数 |
-| `DATAPILOT_SEMANTIC_CATALOG_PATH` | `data/semantic_catalog.json` | 业务语义目录 |
-| `DATAPILOT_EMBEDDING_MODEL` | `text-embedding-3-small` | 混合检索使用的向量模型 |
-| `DATAPILOT_RETRIEVAL_TOP_K` | `5` | 注入 SQL Agent 的语义文档数 |
-| `DATAPILOT_RETRIEVAL_VECTOR_WEIGHT` | `0.55` | 融合排序中的向量分数权重 |
-| `OPENAI_API_KEY` | 空 | 模型服务 API Key，必填 |
-| `DATAPILOT_EXECUTION_TIMEOUT_SECONDS` | `20` | 查询超时秒数 |
-| `DATAPILOT_MAX_RESULT_ROWS` | `1000` | 单条查询最大返回行数 |
-| `DATAPILOT_CATALOG_PATH` | `data/catalog.json` | 数据源目录路径 |
-| `DATAPILOT_RUN_DIR` | `data/runs` | 状态和报告保存目录 |
-
 ## 项目结构
 
 ```text
 DataPilot-Agent/
 ├── data/
-│   ├── catalog.json           # 数据源目录
-│   ├── semantic_catalog.json  # 指标、维度和业务口径
-│   └── runs/                  # 任务状态和报告
+│   ├── catalog.json                    # 数据集目录和表白名单
+│   ├── semantic_catalog.json           # 指标、维度和业务规则
+│   ├── olist_csv/                      # Olist 原始 CSV，不提交 Git
+│   └── runs/                           # JSON 状态和 Markdown 报告
 ├── evaluation/
-│   ├── dataset.jsonl          # 评估用例
-│   └── run_eval.py            # 评估入口
+│   ├── dataset.jsonl                   # 评估用例
+│   └── run_eval.py                     # 评估入口
 ├── scripts/
-│   └── seed_demo.py           # 演示数据库初始化
+│   ├── seed_demo.py                    # SQLite 演示数据初始化
+│   └── import_olist_postgres.py        # Olist PostgreSQL 导入脚本
 ├── src/datapilot/
-│   ├── agents/                # Planner、SQL、Analyst 等 Agent
-│   ├── api.py                 # FastAPI 接口
-│   ├── catalog.py             # 数据源目录
-│   ├── datasources.py         # SQLite/PostgreSQL 访问
-│   ├── retrieval.py           # BM25 + Embedding 混合检索
-│   ├── mcp_server.py          # 受控 MCP 工具服务
-│   ├── observability.py       # 模型 Token 用量采集
-│   ├── security.py            # SQL 安全校验
-│   ├── storage.py             # JSON 和 Markdown 持久化
-│   └── workflow.py            # LangGraph 工作流
+│   ├── agents/                         # Planner、SQL、Analyst 等 Agent
+│   ├── api.py                          # FastAPI 接口
+│   ├── catalog.py                      # 数据集目录
+│   ├── datasources.py                  # SQLite/PostgreSQL 访问
+│   ├── retrieval.py                    # BM25 + Embedding 混合检索
+│   ├── mcp_server.py                   # MCP 工具服务
+│   ├── observability.py                # Token 用量采集
+│   ├── security.py                     # SQL 安全校验
+│   ├── storage.py                      # 状态和报告持久化
+│   └── workflow.py                     # LangGraph 工作流
 ├── tests/
 ├── .env.example
 ├── Dockerfile
@@ -487,42 +575,87 @@ DataPilot-Agent/
 
 ## 常见问题
 
-### 找不到 `datapilot` 命令
+### `datapilot` 命令不存在
 
-确认已经激活 Conda 环境并安装项目：
+```powershell
+conda activate datapilot
+python -m pip install -e . --no-deps
+Get-Command datapilot
+```
+
+### `ModuleNotFoundError: No module named 'datapilot'`
+
+项目采用 `src` 布局。推荐执行：
 
 ```bash
-conda activate datapilot
 python -m pip install -e . --no-deps
 ```
 
-### 提示找不到 `data/demo.sqlite`
-
-重新初始化演示数据：
+临时启动 API 也可以使用：
 
 ```bash
-python scripts/seed_demo.py
+python -m uvicorn datapilot.api:app --reload --app-dir src
 ```
 
-### 修改 `.env` 后没有生效
+### 模型提示 `Missing credentials`
 
-停止并重新启动 Uvicorn。环境配置在应用启动时加载。
+确认 `.env` 中存在有效的：
+
+```dotenv
+OPENAI_API_KEY=your-api-key
+```
+
+修改配置后重启 CLI 或 Uvicorn。
+
+### 提示设置 `OLIST_ADMIN_DATABASE_URL`
+
+导入 Olist 前在当前 PowerShell 执行：
+
+```powershell
+$env:OLIST_ADMIN_DATABASE_URL = "postgresql://postgres:your-admin-password@localhost:5432/olist"
+```
 
 ### PostgreSQL 连接失败
 
-检查：
+依次检查：
 
-1. `connection_env` 与实际环境变量名称是否一致；
-2. 数据库地址是否可达；
-3. 是否已为只读账号授予目标表的 `SELECT` 权限；
-4. 表名是否已加入 `allowed_tables`。
+1. `docker ps` 中 `olist-postgres` 是否为 `Up`；
+2. `connection_env` 与实际环境变量名是否一致；
+3. 数据库地址、端口、用户名和密码是否正确；
+4. 是否安装 `psycopg[binary]`；
+5. 只读账户是否拥有 Schema 的 `USAGE` 和目标表的 `SELECT` 权限；
+6. 表名是否位于 `allowed_tables` 中。
+
+### 报告中的查询返回0行
+
+先查看报告里的实际 SQL。常见原因包括：
+
+- 模型添加了不适用于历史数据的“最近 N 个月”条件；
+- 时间范围不覆盖数据集实际年份；
+- `INNER JOIN` 没有匹配记录；
+- 状态值或类别值与数据库实际内容不一致。
+
+对 Olist 可先验证：
+
+```sql
+SELECT COUNT(*), MIN(order_purchase_timestamp), MAX(order_purchase_timestamp)
+FROM orders;
+```
+
+然后在问题中明确“使用全部历史数据，不要按当前日期过滤”。
+
+### LangChain 或 Pydantic 警告
+
+依赖库的弃用或序列化警告通常不会阻止任务执行。应优先查看异常栈最后一段，以及任务 JSON 中的 `status`、`query_results` 和 `trace`。
 
 ## 当前边界
 
-- 本地状态使用 JSON 文件保存，适合单实例演示，不适合多实例并发部署；
-- 当前没有用户认证、租户隔离和行级权限；
-- Agent 的分析质量受模型能力、Schema 描述和业务口径完整性影响；
-- 报告结论来自查询证据，但不自动证明因果关系；
-- 系统不执行邮件发送、批量导出或数据修改等外部副作用。
+- 任务状态使用本地 JSON 文件保存，不适合多实例并发写入；
+- 尚未提供用户认证、租户隔离、RBAC 和行级权限；
+- Agent 的分析质量依赖模型、Schema 描述和业务语义目录的完整性；
+- SQL 执行成功不等于业务结论正确；当前仍需要关注返回0行、口径错误和不合理过滤条件；
+- 报告中的结果来自只读查询证据，但不能自动证明因果关系；
+- 系统不会真正发送邮件、批量导出或执行数据库修改；
+- Swagger 是开发调试界面，不是最终用户聊天前端。
 
-生产部署前应接入企业 IAM/RBAC、集中式状态存储、密钥管理、审计平台和更严格的数据库权限控制。
+生产部署前应增加企业 IAM/RBAC、集中式状态存储、密钥管理、审计平台、连接池、任务队列、行列级权限和更严格的质量门禁。

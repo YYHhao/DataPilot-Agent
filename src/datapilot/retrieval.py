@@ -146,6 +146,8 @@ class SemanticRetriever:
         from langchain_openai import OpenAIEmbeddings
 
         options = {"model": settings.embedding_model}
+        if settings.openai_api_key:
+            options["api_key"] = settings.openai_api_key.get_secret_value()
         if settings.model_base_url:
             options["base_url"] = settings.model_base_url
         return OpenAIEmbeddings(**options)

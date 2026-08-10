@@ -31,7 +31,7 @@ def test_api_creates_reads_and_downloads_run(enterprise_runtime, monkeypatch):
     assert client.get(f"/v1/runs/{run['run_id']}").status_code == 200
     report = client.get(run["artifacts"]["report"])
     assert report.status_code == 200
-    assert "SQL evidence" in report.text
+    assert "SQL 证据" in report.text
 
 
 def test_api_approves_paused_run(enterprise_runtime, monkeypatch):

@@ -15,12 +15,14 @@ def structured_model(schema: type[T]):
     try:
         from langchain_openai import ChatOpenAI
     except ImportError as exc:
-        raise RuntimeError("Install dependencies from requirements.txt") from exc
+        raise RuntimeError("请安装 requirements.txt 中声明的依赖") from exc
 
     options = {
         "model": settings.model_name,
         "temperature": settings.model_temperature,
     }
+    if settings.openai_api_key:
+        options["api_key"] = settings.openai_api_key.get_secret_value()
     if settings.model_base_url:
         options["base_url"] = settings.model_base_url
     return ChatOpenAI(**options).with_structured_output(schema)

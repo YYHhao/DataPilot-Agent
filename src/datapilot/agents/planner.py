@@ -16,17 +16,22 @@ class PlannerAgent:
     def run(self, question: str) -> AnalysisPlan:
         normalized = question.strip()
         if not normalized:
-            raise ValueError("Question cannot be empty")
+            raise ValueError("分析问题不能为空")
         model = self._model or structured_model(AnalysisPlan)
         plan, self.last_usage = invoke_observed(
             model,
-            "You are the planning agent of a governed enterprise analytics system. "
-            "Classify the analysis as overview, data_quality, ranking, trend, or correlation. "
-            "Return a concise objective and 2-5 executable analysis steps. Do not invent schema. "
-            "Risk approval is enforced separately, so do not mark ordinary read-only analytics "
-            f"as risky.\n\nUser request: {normalized}",
+            "你是一个受治理企业数据分析系统的规划智能体。"
+            "将分析类型归类为 overview、data_quality、ranking、trend 或 correlation。"
+            "返回简洁的中文目标和 2～5 个可执行的中文分析步骤，不得虚构数据库结构。"
+            "风险审批由独立规则执行，不要把普通只读分析标记为高风险。"
+            "除固定枚举值和技术标识外，所有文本均使用简体中文。"
+            f"\n\n用户请求：{normalized}",
         )
-        risks = sorted(set(plan.risk_reasons + detect_risks(normalized)))
+        # Approval is a deterministic policy decision. Do not trust model-provided
+        # risk reasons here: some compatible models put benign explanations such
+        # as "standard read-only query" in this field, which would otherwise
+        # incorrectly force an approval.
+        risks = detect_risks(normalized)
         plan.risk_reasons = risks
         plan.requires_approval = bool(risks)
         if risks:

@@ -2,17 +2,17 @@ from __future__ import annotations
 
 
 RISK_TERMS = {
-    "删除": "request asks to delete data",
-    "覆盖": "request asks to overwrite data",
-    "发送邮件": "request asks for an external side effect",
-    "导出全部": "request asks for a bulk export",
-    "个人信贷": "request involves an individual credit decision",
-    "医疗诊断": "request involves medical diagnosis",
-    "delete": "request asks to delete data",
-    "overwrite": "request asks to overwrite data",
-    "export all": "request asks for a bulk export",
-    "send email": "request asks for an external side effect",
-    "credit decision": "request involves an individual credit decision",
+    "删除": "请求涉及删除数据",
+    "覆盖": "请求涉及覆盖数据",
+    "发送邮件": "请求涉及外部副作用",
+    "导出全部": "请求涉及批量导出",
+    "个人信贷": "请求涉及个人信贷决策",
+    "医疗诊断": "请求涉及医疗诊断",
+    "delete": "请求涉及删除数据",
+    "overwrite": "请求涉及覆盖数据",
+    "export all": "请求涉及批量导出",
+    "send email": "请求涉及外部副作用",
+    "credit decision": "请求涉及个人信贷决策",
 }
 
 

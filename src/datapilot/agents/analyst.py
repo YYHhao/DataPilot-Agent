@@ -35,7 +35,7 @@ class AnalystAgent:
                     f"{column}={value}"
                     for column, value in zip(result["columns"], row, strict=False)
                 )
-                findings.append(f"[{result['query_id']}] {result['purpose']}: {rendered}")
+                findings.append(f"[{result['query_id']}] {result['purpose']}：{rendered}")
         return {
             "objective": plan.objective,
             "analysis_type": plan.analysis_type,

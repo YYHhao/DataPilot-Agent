@@ -9,4 +9,5 @@ htmlcov/
 data/runs/*
 !data/runs/.gitkeep
 data/*.sqlite
+data/olist_csv/
 evaluation/results.json

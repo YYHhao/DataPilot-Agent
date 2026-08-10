@@ -99,7 +99,7 @@ class DataPilotWorkflow:
     def approve(self, run_id: str) -> AgentState:
         state = self.store.load(run_id)
         if state.get("status") != "awaiting_approval":
-            raise ValueError("Only an awaiting_approval run can be approved")
+            raise ValueError("只有处于 awaiting_approval 状态的任务才能被批准")
         state["approved"] = True
         state["status"] = "approved"
         return self.graph.invoke(state)
@@ -224,7 +224,7 @@ class DataPilotWorkflow:
             {
                 "query_id": result["query_id"],
                 "status": result["status"],
-                "error": result.get("error", "unknown"),
+                "error": result.get("error", "未知错误"),
             }
             for result in state["query_results"]
             if result["status"] != "ok"
