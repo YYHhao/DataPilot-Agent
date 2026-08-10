@@ -9,9 +9,7 @@ class ConfigurableModel:
         message = SimpleNamespace(
             usage_metadata={"input_tokens": 8, "output_tokens": 3, "total_tokens": 11}
         )
-        callback.on_llm_end(
-            SimpleNamespace(generations=[[SimpleNamespace(message=message)]])
-        )
+        callback.on_llm_end(SimpleNamespace(generations=[[SimpleNamespace(message=message)]]))
         return "ok"
 
 

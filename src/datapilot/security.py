@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import re
 
-
 FORBIDDEN_SQL = re.compile(
     r"\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum|"
     r"reindex|grant|revoke|truncate|copy|call|execute)\b",
+    re.IGNORECASE,
+)
+
+RELATIVE_TIME_SQL = re.compile(
+    r"\b(current_date|current_timestamp|localtimestamp|now\s*\()", re.IGNORECASE
+)
+RELATIVE_TIME_REQUEST = re.compile(
+    r"最近|过去|近\s*\d+|当前|今天|本月|今年|去年|"
+    r"\b(last|past|recent|current|today|yesterday|this\s+(month|year))\b",
     re.IGNORECASE,
 )
 FORBIDDEN_FUNCTIONS = re.compile(
@@ -47,3 +55,9 @@ def validate_readonly_sql(sql: str, allowed_tables: list[str]) -> None:
     unauthorized = referenced - allowed - cte_names
     if unauthorized:
         raise ValueError(f"SQL 引用了未授权的数据表：{sorted(unauthorized)}")
+
+
+def validate_question_scope(sql: str, question: str) -> None:
+    """Reject model-invented relative date windows absent from the user request."""
+    if RELATIVE_TIME_SQL.search(sql) and not RELATIVE_TIME_REQUEST.search(question):
+        raise ValueError("SQL 使用了相对当前时间的筛选条件，但用户没有指定该时间范围")

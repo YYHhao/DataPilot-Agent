@@ -24,9 +24,7 @@ class FakePlanner:
         return AnalysisPlan(
             objective=question,
             analysis_type=(
-                AnalysisType.RANKING
-                if "rank" in question.lower()
-                else AnalysisType.OVERVIEW
+                AnalysisType.RANKING if "rank" in question.lower() else AnalysisType.OVERVIEW
             ),
             steps=["inspect schema", "query approved data", "review evidence"],
             risk_level=RiskLevel.HIGH if risks else RiskLevel.LOW,
@@ -36,7 +34,7 @@ class FakePlanner:
 
 
 class FakeSqlAgent:
-    def run(self, profile, plan, semantics=None) -> SqlQueryPlan:
+    def run(self, profile, plan, semantics=None, question="") -> SqlQueryPlan:
         return SqlQueryPlan(
             dialect=profile.driver,
             queries=[
@@ -48,8 +46,10 @@ class FakeSqlAgent:
             ],
         )
 
-    def repair(self, profile, plan, previous, failures, semantics=None) -> SqlQueryPlan:
-        return self.run(profile, plan)
+    def repair(
+        self, profile, plan, previous, failures, semantics=None, question=""
+    ) -> SqlQueryPlan:
+        return self.run(profile, plan, question=question)
 
 
 class FakeRetriever:
@@ -116,10 +116,14 @@ def enterprise_runtime(tmp_path):
     )
     catalog = DatasetCatalog(catalog_path)
     store = JsonRunStore(tmp_path / "runs")
-    return catalog, store, DataPilotWorkflow(
+    return (
         catalog,
         store,
-        planner=FakePlanner(),
-        sql_agent=FakeSqlAgent(),
-        retriever=FakeRetriever(),
+        DataPilotWorkflow(
+            catalog,
+            store,
+            planner=FakePlanner(),
+            sql_agent=FakeSqlAgent(),
+            retriever=FakeRetriever(),
+        ),
     )

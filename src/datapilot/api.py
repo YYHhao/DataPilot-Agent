@@ -9,7 +9,6 @@ from datapilot.models import DatasetResponse, RunRequest, RunResponse
 from datapilot.storage import JsonRunStore
 from datapilot.workflow import DataPilotWorkflow
 
-
 app = FastAPI(
     title="DataPilot 企业数据分析智能体",
     version="0.2.0",

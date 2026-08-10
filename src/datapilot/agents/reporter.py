@@ -47,12 +47,15 @@ class ReporterAgent:
         issues = "\n".join(f"- {item}" for item in review.issues) or "- 未发现阻塞性问题"
         steps = "\n".join(f"{index}. {step}" for index, step in enumerate(plan.steps, 1))
         recommendations = "\n".join(f"- {item}" for item in review.recommendations) or "- 无"
-        semantic_lines = "\n".join(
-            f"- **{item.document.name}** (`{item.document.id}`): "
-            f"{item.document.description}"
-            + (f"；公式：`{item.document.formula}`" if item.document.formula else "")
-            for item in semantics or []
-        ) or "- 未找到与请求匹配的受治理业务定义"
+        semantic_lines = (
+            "\n".join(
+                f"- **{item.document.name}** (`{item.document.id}`): "
+                f"{item.document.description}"
+                + (f"；公式：`{item.document.formula}`" if item.document.formula else "")
+                for item in semantics or []
+            )
+            or "- 未找到与请求匹配的受治理业务定义"
+        )
         return f"""# 企业数据分析报告
 
 ## 分析目标
@@ -75,7 +78,7 @@ class ReporterAgent:
 
 - 分析类型：**{plan.analysis_type.value}**
 - 风险等级：**{plan.risk_level.value}**
-- 是否需要审批：**{'是' if plan.requires_approval else '否'}**
+- 是否需要审批：**{"是" if plan.requires_approval else "否"}**
 
 {steps}
 

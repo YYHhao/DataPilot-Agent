@@ -87,3 +87,21 @@ def test_unknown_dataset_is_rejected(enterprise_runtime):
         pass
     else:
         raise AssertionError("unknown dataset should be rejected")
+
+
+def test_all_empty_queries_fail_quality_gate(enterprise_runtime):
+    _, _, workflow = enterprise_runtime
+    empty_plan = SqlQueryPlan(
+        dialect="sqlite",
+        queries=[
+            SqlQuery(
+                query_id="Q1",
+                purpose="不存在的地区",
+                sql="SELECT region FROM sales WHERE region = 'Missing'",
+            )
+        ],
+    )
+    workflow.sql_agent.run = lambda *_: empty_plan
+    state = workflow.run("test_sales", "查询不存在的地区")
+    assert state["status"] == "quality_gate_failed"
+    assert any("所有查询均返回0行" in issue for issue in state["review"]["issues"])

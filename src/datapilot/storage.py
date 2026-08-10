@@ -7,7 +7,6 @@ from threading import Lock
 
 from datapilot.models import AgentState
 
-
 RUN_ID = re.compile(r"^[a-f0-9]{32}$")
 
 

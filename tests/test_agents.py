@@ -71,3 +71,22 @@ def test_sql_agent_uses_structured_llm_output():
     result = SqlAgent(model).run(profile, plan)
     assert result == expected
     assert "orders" in model.prompts[0]
+    assert "不得擅自添加最近若干月" in model.prompts[0]
+
+
+def test_sql_agent_prompt_preserves_original_question_scope():
+    expected = SqlQueryPlan(
+        dialect="sqlite",
+        queries=[SqlQuery(query_id="Q1", purpose="统计", sql="SELECT COUNT(*) FROM orders")],
+    )
+    model = StubModel(expected)
+    profile = SchemaProfile(
+        dataset_id="sales",
+        dataset_name="Sales",
+        description="",
+        driver="sqlite",
+        tables=[TableSchema(name="orders", columns=[ColumnSchema(name="id", data_type="INTEGER")])],
+    )
+    plan = AnalysisPlan(objective="统计全部历史订单", steps=["统计"])
+    SqlAgent(model).run(profile, plan, question="使用全部历史数据")
+    assert "用户原始问题：使用全部历史数据" in model.prompts[0]

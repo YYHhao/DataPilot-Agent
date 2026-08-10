@@ -30,11 +30,19 @@ class ReviewerAgent:
             issues.append("分析证据链不完整")
         if not checked:
             issues.append("没有可用的成功执行证据")
+        elif query_results and all(result.get("row_count", 0) == 0 for result in query_results):
+            issues.append("所有查询均返回0行，无法形成有效分析结论")
 
         blocking = any(
             marker in issue
             for issue in issues
-            for marker in ("授权范围之外", "未成功执行", "证据链不完整", "没有可用")
+            for marker in (
+                "授权范围之外",
+                "未成功执行",
+                "证据链不完整",
+                "没有可用",
+                "所有查询均返回0行",
+            )
         )
         score = max(0.0, 1.0 - 0.18 * len(issues))
         return ReviewResult(

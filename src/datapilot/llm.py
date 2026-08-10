@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 from datapilot.config import settings
 
-
 T = TypeVar("T", bound=BaseModel)
 
 

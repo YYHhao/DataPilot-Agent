@@ -89,6 +89,106 @@
       "columns": ["revenue", "discount"],
       "formula": null,
       "aliases": ["net revenue", "gross revenue", "revenue definition", "收入定义"]
+    },
+    {
+      "id": "olist.metric.order_count",
+      "kind": "metric",
+      "name": "Olist 订单数量",
+      "description": "订单数按 orders.order_id 去重计算。分析成交订单时可按业务问题筛选 order_status。",
+      "table": "orders",
+      "columns": ["order_id", "order_status"],
+      "formula": "COUNT(DISTINCT orders.order_id)",
+      "aliases": ["order count", "orders", "订单数", "订单数量", "订单量"]
+    },
+    {
+      "id": "olist.metric.product_revenue",
+      "kind": "metric",
+      "name": "Olist 商品销售收入",
+      "description": "商品销售收入为订单明细 price 之和，不包含运费。order_items 可通过 order_id 与 orders 关联。",
+      "table": "order_items",
+      "columns": ["order_id", "price"],
+      "formula": "SUM(order_items.price)",
+      "aliases": ["revenue", "sales", "GMV", "销售额", "销售收入", "商品收入"]
+    },
+    {
+      "id": "olist.metric.customer_payment",
+      "kind": "metric",
+      "name": "Olist 客户支付金额",
+      "description": "客户实际支付金额为 payment_value 之和，可能包含商品、运费及分次支付。",
+      "table": "order_payments",
+      "columns": ["order_id", "payment_value"],
+      "formula": "SUM(order_payments.payment_value)",
+      "aliases": ["payment value", "paid amount", "支付金额", "实付金额", "成交金额"]
+    },
+    {
+      "id": "olist.metric.average_order_value",
+      "kind": "metric",
+      "name": "Olist 平均客单价",
+      "description": "以商品收入计算的平均客单价；先按 order_id 汇总商品价格，再计算订单平均值。",
+      "table": "order_items",
+      "columns": ["order_id", "price"],
+      "formula": "SUM(order_items.price) / NULLIF(COUNT(DISTINCT order_items.order_id), 0)",
+      "aliases": ["AOV", "average order value", "客单价", "平均订单金额"]
+    },
+    {
+      "id": "olist.metric.freight_value",
+      "kind": "metric",
+      "name": "Olist 运费",
+      "description": "订单明细中 freight_value 的合计金额。",
+      "table": "order_items",
+      "columns": ["order_id", "freight_value"],
+      "formula": "SUM(order_items.freight_value)",
+      "aliases": ["freight", "shipping cost", "运费", "配送费用"]
+    },
+    {
+      "id": "olist.metric.review_score",
+      "kind": "metric",
+      "name": "Olist 平均评价分",
+      "description": "订单评价分数的算术平均值，review_score 通常为1至5分。",
+      "table": "order_reviews",
+      "columns": ["order_id", "review_score"],
+      "formula": "AVG(order_reviews.review_score)",
+      "aliases": ["review score", "rating", "评价分", "评分", "满意度"]
+    },
+    {
+      "id": "olist.dimension.order_month",
+      "kind": "dimension",
+      "name": "Olist 下单月份",
+      "description": "从 order_purchase_timestamp 提取自然月。未指定时间范围时应覆盖数据中的全部历史月份，不得相对 CURRENT_DATE 过滤。",
+      "table": "orders",
+      "columns": ["order_purchase_timestamp"],
+      "formula": "TO_CHAR(orders.order_purchase_timestamp, 'YYYY-MM')",
+      "aliases": ["order month", "monthly", "月份", "月度", "按月", "下单时间"]
+    },
+    {
+      "id": "olist.dimension.order_status",
+      "kind": "dimension",
+      "name": "Olist 订单状态",
+      "description": "订单状态字段 order_status，可用于区分 delivered、shipped、canceled 等状态。",
+      "table": "orders",
+      "columns": ["order_status"],
+      "formula": "orders.order_status",
+      "aliases": ["order status", "delivered", "canceled", "订单状态", "已交付", "已取消"]
+    },
+    {
+      "id": "olist.dimension.product_category",
+      "kind": "dimension",
+      "name": "Olist 商品类别",
+      "description": "products.product_category_name 为葡萄牙语类别，可与 product_category_translation 关联获取英文名称。",
+      "table": "products",
+      "columns": ["product_id", "product_category_name"],
+      "formula": "products.product_category_name",
+      "aliases": ["product category", "category", "商品类别", "产品类别", "品类"]
+    },
+    {
+      "id": "olist.policy.historical_range",
+      "kind": "business_rule",
+      "name": "Olist 历史时间范围规则",
+      "description": "Olist 是历史数据集。用户未指定时间范围时使用数据中的完整日期范围，不得自动添加最近24个月、当前年份或相对当前日期的条件。",
+      "table": "orders",
+      "columns": ["order_purchase_timestamp"],
+      "formula": null,
+      "aliases": ["all history", "full history", "date range", "全部历史", "完整历史", "时间范围"]
     }
   ]
 }

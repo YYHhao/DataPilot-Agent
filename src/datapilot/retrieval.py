@@ -4,6 +4,7 @@ import json
 import math
 import re
 from collections import Counter
+from itertools import pairwise
 from pathlib import Path
 
 from pydantic import TypeAdapter
@@ -16,7 +17,7 @@ def _tokens(text: str) -> list[str]:
     lowered = text.lower()
     words = re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]", lowered)
     chinese = [token for token in words if len(token) == 1 and "\u4e00" <= token <= "\u9fff"]
-    bigrams = [left + right for left, right in zip(chinese, chinese[1:])]
+    bigrams = [left + right for left, right in pairwise(chinese)]
     return words + bigrams
 
 
@@ -46,9 +47,7 @@ class SemanticRetriever:
     def __init__(self, path: Path | None = None, embeddings=None) -> None:
         source = path or settings.semantic_catalog_path
         payload = json.loads(source.read_text(encoding="utf-8"))
-        self.documents = TypeAdapter(list[SemanticDocument]).validate_python(
-            payload["documents"]
-        )
+        self.documents = TypeAdapter(list[SemanticDocument]).validate_python(payload["documents"])
         self._embeddings = embeddings
         self._document_vectors: list[list[float]] | None = None
 
@@ -60,9 +59,7 @@ class SemanticRetriever:
     ) -> list[RetrievedSemantic]:
         allowed_tables = {table.name for table in profile.tables}
         allowed_columns = {
-            (table.name, column.name)
-            for table in profile.tables
-            for column in table.columns
+            (table.name, column.name) for table in profile.tables for column in table.columns
         }
         candidates = [
             document
@@ -82,8 +79,7 @@ class SemanticRetriever:
                 lexical_score=round(lexical[index], 6),
                 vector_score=round(vector[index], 6) if vector else 0.0,
                 score=round(
-                    (1 - weight) * lexical[index]
-                    + weight * (vector[index] if vector else 0.0),
+                    (1 - weight) * lexical[index] + weight * (vector[index] if vector else 0.0),
                     6,
                 ),
             )
@@ -98,9 +94,7 @@ class SemanticRetriever:
         query_tokens = _tokens(query)
         lengths = [len(tokens) for tokens in tokenized]
         average_length = sum(lengths) / len(lengths) if lengths else 1
-        document_frequency = Counter(
-            token for tokens in tokenized for token in set(tokens)
-        )
+        document_frequency = Counter(token for tokens in tokenized for token in set(tokens))
         scores = []
         for tokens in tokenized:
             frequencies = Counter(tokens)
@@ -110,20 +104,17 @@ class SemanticRetriever:
                 if not frequency:
                     continue
                 inverse_frequency = math.log(
-                    1 + (len(documents) - document_frequency[token] + 0.5)
+                    1
+                    + (len(documents) - document_frequency[token] + 0.5)
                     / (document_frequency[token] + 0.5)
                 )
-                denominator = frequency + 1.5 * (
-                    1 - 0.75 + 0.75 * len(tokens) / average_length
-                )
+                denominator = frequency + 1.5 * (1 - 0.75 + 0.75 * len(tokens) / average_length)
                 score += inverse_frequency * frequency * 2.5 / denominator
             scores.append(score)
         maximum = max(scores, default=0.0)
         return [score / maximum if maximum else 0.0 for score in scores]
 
-    def _vector_scores(
-        self, question: str, documents: list[SemanticDocument]
-    ) -> list[float]:
+    def _vector_scores(self, question: str, documents: list[SemanticDocument]) -> list[float]:
         try:
             embeddings = self._embeddings or self._create_embeddings()
             if self._document_vectors is None:
@@ -138,7 +129,7 @@ class SemanticRetriever:
                 (score - minimum) / (maximum - minimum) if maximum > minimum else 1.0
                 for score in raw
             ]
-        except Exception:
+        except Exception:  # noqa: BLE001 - embedding outages must fall back to lexical retrieval
             return []
 
     @staticmethod

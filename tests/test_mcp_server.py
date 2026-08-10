@@ -19,9 +19,7 @@ def test_mcp_service_exposes_governed_schema_and_query(enterprise_runtime):
     schema = json.loads(service.get_schema("test_sales"))
     assert schema["tables"][0]["name"] == "sales"
     output = json.loads(
-        service.execute_readonly_sql(
-            "test_sales", "SELECT COUNT(*) AS record_count FROM sales"
-        )
+        service.execute_readonly_sql("test_sales", "SELECT COUNT(*) AS record_count FROM sales")
     )
     assert output["rows"] == [[12]]
 

@@ -6,7 +6,7 @@ DataPilot Agent 是一个面向企业数据源的多 Agent 数据分析项目。
 
 > 当前版本：`0.2.0`。本项目适合本地学习、功能验证和单实例原型演示，尚不是开箱即用的多租户生产平台。
 
-## 核心能力
+## 一、核心能力
 
 - 使用 LangGraph 编排 Planner、Schema、SQL、Analyst、Reviewer 和 Reporter；
 - 使用结构化模型输出生成分析计划及 1～5 条分析 SQL；
@@ -22,10 +22,10 @@ DataPilot Agent 是一个面向企业数据源的多 Agent 数据分析项目。
 - 保存 JSON 任务状态与中文 Markdown 报告；
 - 提供 FastAPI、CLI、MCP Server、Docker、测试和离线评估入口。
 
-## 工作流程
+## 二、工作流程
 
 ```mermaid
-flowchart LR
+flowchart TD
     U[自然语言问题和 dataset_id] --> P[Planner]
     P --> G{是否需要审批}
     G -->|需要且未批准| W[保存等待审批状态]
@@ -53,7 +53,7 @@ flowchart LR
 | Reviewer | 检查执行状态、数据权限和证据链 |
 | Reporter | 生成包含 SQL、结果预览和复核结论的中文报告 |
 
-## 环境要求
+## 三、环境要求
 
 - Python `>=3.11,<3.15`；
 - Miniconda、Anaconda 或其他 Python 虚拟环境；
@@ -67,7 +67,7 @@ flowchart LR
 D:\pythonDemo\agent\DataPilot-Agent
 ```
 
-## 快速开始：SQLite 演示
+## 四、快速开始：SQLite 演示
 
 这是验证 DataPilot 安装和模型配置的最短路径。
 
@@ -144,6 +144,8 @@ python -m pip install -e . --no-deps
 
 ### 6. 启动 API
 
+此步骤是可选的。如果只通过 `datapilot` CLI 在终端运行分析任务，不需要启动 API；当需要使用 Swagger 调试接口、让网页前端或其他程序通过 HTTP 调用 DataPilot、查询任务状态、审批任务或下载报告时，才需要启动 API。
+
 ```bash
 uvicorn datapilot.api:app --reload
 ```
@@ -156,7 +158,7 @@ uvicorn datapilot.api:app --reload
 
 访问根地址 `/` 返回 `404` 属于正常现象；当前项目没有定义首页路由。
 
-## Olist + PostgreSQL 完整示例
+## 五、Olist + PostgreSQL 完整示例
 
 项目已提供 Olist CSV 导入脚本，适合测试多表 JOIN、月度趋势、商品类别、客户地区、支付方式、配送时效和评价分析。
 
@@ -272,10 +274,10 @@ $env:OLIST_DATABASE_URL = "postgresql://datapilot_reader:your-reader-password@lo
 运行：
 
 ```powershell
-datapilot olist "分析数据集中全部历史月份的订单数量和销售收入变化，不要使用当前日期或最近24个月作为筛选条件"
+datapilot olist "分析数据集中全部历史月份的订单数量和销售收入变化"
 ```
 
-Olist 数据主要是历史数据。若只提问“最近24个月”，或者模型擅自添加相对于当前日期的过滤条件，查询可能返回0行。因此建议在问题中明确“全部历史数据”或指定实际年份。
+Olist 数据主要是历史数据。DataPilot 会把用户原始问题传给 SQL Agent；当用户没有提出相对时间范围时，安全层会拒绝模型擅自生成的 `CURRENT_DATE`、`NOW()` 等相对当前时间条件，并触发 SQL 修复。若确实需要最近24个月，应在问题中明确说明。
 
 管理员变量 `OLIST_ADMIN_DATABASE_URL` 只用于数据导入；日常分析应使用权限受限的 `OLIST_DATABASE_URL`。
 
@@ -289,7 +291,7 @@ docker ps -a --filter "name=olist-postgres"
 
 数据库保存在 Docker volume `olist_postgres_data` 中，停止容器不会删除数据。
 
-## 使用 CLI
+## 六、使用 CLI
 
 基本格式：
 
@@ -313,7 +315,7 @@ datapilot demo_sales "导出全部客户记录" --approved
 
 审批只允许工作流继续运行，不会提升数据库权限，也不会绕过只读 SQL 校验。
 
-## 使用 API
+## 七、使用 API
 
 ### 查看数据集
 
@@ -370,7 +372,7 @@ Invoke-RestMethod -Method Post `
   -Uri "http://127.0.0.1:8000/v1/runs/$($run.run_id)/approve"
 ```
 
-## 数据源目录
+## 八、数据源目录
 
 数据源登记在 `data/catalog.json`。客户端只能提交 `dataset_id`，不能在请求中传入连接字符串或临时修改表白名单。
 
@@ -412,7 +414,7 @@ $env:SALES_DATABASE_URL = "postgresql://readonly_user:password@localhost:5432/sa
 
 生产数据库应使用只读账户，并仅授予白名单表或视图的 `SELECT` 权限。
 
-## 业务语义目录
+## 九、业务语义目录
 
 业务定义保存在 `data/semantic_catalog.json`。每条文档描述一个指标、维度或业务规则：
 
@@ -437,9 +439,9 @@ $env:SALES_DATABASE_URL = "postgresql://readonly_user:password@localhost:5432/sa
 4. 融合分数并返回 Top-K；
 5. 将受控公式和业务解释注入 SQL Agent。
 
-Embedding 服务不可用时会退化为 BM25，但 Planner 和 SQL Agent 仍需要可用的大模型服务。新增数据集时，应同步补充该数据集的指标和业务规则，否则报告会显示“未找到与请求匹配的受治理业务定义”。
+Embedding 服务不可用时会退化为 BM25，但 Planner 和 SQL Agent 仍需要可用的大模型服务。新增数据集时，应同步补充该数据集的指标和业务规则，否则报告会显示“未找到与请求匹配的受治理业务定义”。当前目录已包含 Olist 的订单量、商品收入、支付金额、客单价、运费、评价分、订单月份、订单状态、商品类别和完整历史范围规则。
 
-## MCP Server
+## 十、MCP Server
 
 启动 stdio MCP Server：
 
@@ -469,7 +471,7 @@ MCP 客户端配置示例：
 }
 ```
 
-## Docker 运行 DataPilot API
+## 十一、Docker 运行 DataPilot API
 
 项目根目录已有 `Dockerfile` 和 `docker-compose.yml`：
 
@@ -489,7 +491,7 @@ docker compose down
 
 Compose 会把本地 `data` 目录挂载到容器，因此任务状态和报告保存在宿主机。若 DataPilot API 也运行在容器中，连接另一个 PostgreSQL 容器时不能使用 `localhost`；应将两个服务加入同一 Docker 网络，并使用 PostgreSQL 服务名作为主机名。
 
-## 配置项
+## 十二、配置项
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -507,7 +509,7 @@ Compose 会把本地 `data` 目录挂载到容器，因此任务状态和报告�
 | `DATAPILOT_CATALOG_PATH` | `data/catalog.json` | 数据集目录 |
 | `DATAPILOT_RUN_DIR` | `data/runs` | 任务状态和报告目录 |
 
-## 测试与评估
+## 十三、测试与评估
 
 运行完整测试：
 
@@ -539,7 +541,7 @@ ruff check .
 ruff format --check .
 ```
 
-## 项目结构
+## 十四、项目结构
 
 ```text
 DataPilot-Agent/
@@ -573,7 +575,7 @@ DataPilot-Agent/
 └── requirements.txt
 ```
 
-## 常见问题
+## 十五、常见问题
 
 ### `datapilot` 命令不存在
 
@@ -635,6 +637,8 @@ $env:OLIST_ADMIN_DATABASE_URL = "postgresql://postgres:your-admin-password@local
 - `INNER JOIN` 没有匹配记录；
 - 状态值或类别值与数据库实际内容不一致。
 
+当所有查询均成功执行但全部返回0行时，Reviewer 会将任务标记为 `quality_gate_failed`，避免把无证据报告误判为完成。
+
 对 Olist 可先验证：
 
 ```sql
@@ -648,12 +652,12 @@ FROM orders;
 
 依赖库的弃用或序列化警告通常不会阻止任务执行。应优先查看异常栈最后一段，以及任务 JSON 中的 `status`、`query_results` 和 `trace`。
 
-## 当前边界
+## 十六、当前边界
 
 - 任务状态使用本地 JSON 文件保存，不适合多实例并发写入；
 - 尚未提供用户认证、租户隔离、RBAC 和行级权限；
 - Agent 的分析质量依赖模型、Schema 描述和业务语义目录的完整性；
-- SQL 执行成功不等于业务结论正确；当前仍需要关注返回0行、口径错误和不合理过滤条件；
+- SQL 执行成功不等于业务结论正确；系统会阻止未被用户要求的相对时间范围，并在全部查询返回0行时令质量门禁失败，但其他口径错误仍需要评估与人工复核；
 - 报告中的结果来自只读查询证据，但不能自动证明因果关系；
 - 系统不会真正发送邮件、批量导出或执行数据库修改；
 - Swagger 是开发调试界面，不是最终用户聊天前端。

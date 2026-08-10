@@ -6,7 +6,6 @@ from pathlib import Path
 
 import psycopg
 
-
 TABLES = {
     "customers": (
         "olist_customers_dataset.csv",
@@ -82,35 +81,38 @@ def main() -> None:
     if not dsn:
         raise SystemExit("请先设置环境变量 OLIST_ADMIN_DATABASE_URL")
 
-    missing = [filename for filename, _ in TABLES.values() if not (args.csv_dir / filename).is_file()]
+    missing = [
+        filename for filename, _ in TABLES.values() if not (args.csv_dir / filename).is_file()
+    ]
     if missing:
         raise SystemExit(f"缺少 CSV 文件：{', '.join(missing)}")
 
-    with psycopg.connect(dsn) as connection:
-        with connection.cursor() as cursor:
-            for table, (filename, columns) in TABLES.items():
-                exists = cursor.execute("SELECT to_regclass(%s)", (f"public.{table}",)).fetchone()[0]
-                if exists and not args.replace:
-                    raise SystemExit(f"表 {table} 已存在；如需重新导入，请增加 --replace")
-                if exists:
-                    cursor.execute(f'DROP TABLE "{table}"')
-                cursor.execute(f'CREATE TABLE "{table}" ({columns})')
-                path = args.csv_dir / filename
-                print(f"正在导入 {filename} -> {table} ...")
-                with path.open("r", encoding="utf-8", newline="") as source:
-                    with cursor.copy(
-                        f'COPY "{table}" FROM STDIN WITH (FORMAT CSV, HEADER TRUE, NULL \'\')'
-                    ) as copy:
-                        while chunk := source.read(1024 * 1024):
-                            copy.write(chunk)
+    with psycopg.connect(dsn) as connection, connection.cursor() as cursor:
+        for table, (filename, columns) in TABLES.items():
+            exists = cursor.execute("SELECT to_regclass(%s)", (f"public.{table}",)).fetchone()[0]
+            if exists and not args.replace:
+                raise SystemExit(f"表 {table} 已存在；如需重新导入，请增加 --replace")
+            if exists:
+                cursor.execute(f'DROP TABLE "{table}"')
+            cursor.execute(f'CREATE TABLE "{table}" ({columns})')
+            path = args.csv_dir / filename
+            print(f"正在导入 {filename} -> {table} ...")
+            with (
+                path.open("r", encoding="utf-8", newline="") as source,
+                cursor.copy(
+                    f"COPY \"{table}\" FROM STDIN WITH (FORMAT CSV, HEADER TRUE, NULL '')"
+                ) as copy,
+            ):
+                while chunk := source.read(1024 * 1024):
+                    copy.write(chunk)
 
-            for statement in INDEXES:
-                cursor.execute(statement)
+        for statement in INDEXES:
+            cursor.execute(statement)
 
-            cursor.execute("ANALYZE")
-            for table in TABLES:
-                count = cursor.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
-                print(f"{table}: {count:,} 行")
+        cursor.execute("ANALYZE")
+        for table in TABLES:
+            count = cursor.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+            print(f"{table}: {count:,} 行")
 
     print("Olist 数据导入完成。")
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal, TypedDict
 
@@ -143,7 +143,7 @@ class AgentState(TypedDict, total=False):
 def new_state(run_id: str, dataset_id: str, question: str, approved: bool) -> AgentState:
     return {
         "run_id": run_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "dataset_id": dataset_id,
         "question": question,
         "approved": approved,

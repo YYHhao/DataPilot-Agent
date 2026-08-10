@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 RISK_TERMS = {
     "删除": "请求涉及删除数据",
     "覆盖": "请求涉及覆盖数据",

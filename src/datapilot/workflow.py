@@ -19,15 +19,16 @@ from datapilot.datasources import DataSourceFactory
 from datapilot.models import (
     AgentState,
     AnalysisPlan,
-    ReviewResult,
     RetrievedSemantic,
+    ReviewResult,
     SchemaProfile,
     SqlQueryPlan,
     new_state,
 )
+from datapilot.retrieval import SemanticRetriever
+from datapilot.security import validate_question_scope
 from datapilot.storage import JsonRunStore
 from datapilot.tracing import trace_node
-from datapilot.retrieval import SemanticRetriever
 
 
 class DataPilotWorkflow:
@@ -147,6 +148,7 @@ class DataPilotWorkflow:
                     RetrievedSemantic.model_validate(item)
                     for item in state.get("semantic_context", [])
                 ],
+                state["question"],
             )
             event["model"] = settings.model_name
             event["token_usage"] = getattr(self.sql_agent, "last_usage", {})
@@ -177,6 +179,7 @@ class DataPilotWorkflow:
         with trace_node(state, "sql_runtime") as event:
             for query in SqlQueryPlan.model_validate(state["sql_plan"]).queries:
                 try:
+                    validate_question_scope(query.sql, state["question"])
                     output = source.execute(query.sql)
                     results.append(
                         {
@@ -187,7 +190,7 @@ class DataPilotWorkflow:
                             **output,
                         }
                     )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - database errors feed the repair agent
                     results.append(
                         {
                             "query_id": query.query_id,
@@ -239,6 +242,7 @@ class DataPilotWorkflow:
                     RetrievedSemantic.model_validate(item)
                     for item in state.get("semantic_context", [])
                 ],
+                state["question"],
             )
             event["attempt"] = state.get("sql_attempt", 0)
             event["model"] = settings.model_name
