@@ -31,6 +31,7 @@ def test_planner_uses_llm_and_enforces_independent_risk_policy():
     model = StubModel(response)
     plan = PlannerAgent(model).run("Delete source data and generate a summary")
     assert model.prompts
+    assert "JSON" in model.prompts[0]
     assert plan.requires_approval
     assert plan.risk_level == RiskLevel.HIGH
     assert plan.risk_reasons
@@ -71,6 +72,7 @@ def test_sql_agent_uses_structured_llm_output():
     result = SqlAgent(model).run(profile, plan)
     assert result == expected
     assert "orders" in model.prompts[0]
+    assert "JSON" in model.prompts[0]
     assert "不得擅自添加最近若干月" in model.prompts[0]
 
 

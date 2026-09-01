@@ -1,0 +1,146 @@
+{
+  "text_to_sql": [
+    {
+      "id": "revenue_by_region",
+      "question": "按总销售收入从高到低列出所有地区，返回地区和总收入。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT region, SUM(revenue) AS total_revenue FROM sales GROUP BY region ORDER BY total_revenue DESC"
+    },
+    {
+      "id": "revenue_by_category",
+      "question": "按总销售收入从高到低列出所有产品类别，返回类别和总收入。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT category, SUM(revenue) AS total_revenue FROM sales GROUP BY category ORDER BY total_revenue DESC"
+    },
+    {
+      "id": "monthly_revenue_trend",
+      "question": "按月份升序汇总销售收入，返回月份和当月总收入。",
+      "analysis_type": "trend",
+      "gold_sql": "SELECT strftime('%Y-%m', order_date) AS month, SUM(revenue) AS total_revenue FROM sales GROUP BY month ORDER BY month ASC"
+    },
+    {
+      "id": "units_by_region",
+      "question": "按销售数量从高到低列出所有地区，返回地区和销售总数量。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT region, SUM(quantity) AS total_quantity FROM sales GROUP BY region ORDER BY total_quantity DESC"
+    },
+    {
+      "id": "units_by_category",
+      "question": "按销售数量从高到低列出所有产品类别，返回类别和销售总数量。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT category, SUM(quantity) AS total_quantity FROM sales GROUP BY category ORDER BY total_quantity DESC"
+    },
+    {
+      "id": "aov_by_region",
+      "question": "计算每个地区的平均订单金额，按平均订单金额从高到低返回全部地区。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT region, SUM(revenue) * 1.0 / COUNT(id) AS average_order_value FROM sales GROUP BY region ORDER BY average_order_value DESC"
+    },
+    {
+      "id": "discount_by_category",
+      "question": "计算每个产品类别的平均折扣率，按平均折扣率从高到低返回全部类别。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT category, AVG(discount) AS average_discount FROM sales GROUP BY category ORDER BY average_discount DESC"
+    },
+    {
+      "id": "orders_by_region",
+      "question": "统计每个地区的订单数，按订单数从高到低返回全部地区。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT region, COUNT(id) AS order_count FROM sales GROUP BY region ORDER BY order_count DESC"
+    },
+    {
+      "id": "total_revenue",
+      "question": "计算全部历史数据的销售总收入，只返回一个总收入数值。",
+      "analysis_type": "overview",
+      "gold_sql": "SELECT SUM(revenue) AS total_revenue FROM sales"
+    },
+    {
+      "id": "total_units",
+      "question": "计算全部历史数据的销售商品总数量，只返回一个总数量数值。",
+      "analysis_type": "overview",
+      "gold_sql": "SELECT SUM(quantity) AS total_quantity FROM sales"
+    },
+    {
+      "id": "order_count",
+      "question": "统计销售数据中的订单总数，只返回一个订单数值。",
+      "analysis_type": "overview",
+      "gold_sql": "SELECT COUNT(id) AS order_count FROM sales"
+    },
+    {
+      "id": "q1_revenue_by_region",
+      "question": "汇总2026年第一季度各地区销售收入，按收入从高到低返回地区和收入。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT region, SUM(revenue) AS total_revenue FROM sales WHERE order_date >= '2026-01-01' AND order_date < '2026-04-01' GROUP BY region ORDER BY total_revenue DESC"
+    },
+    {
+      "id": "date_range",
+      "question": "返回销售数据最早和最晚的订单日期。",
+      "analysis_type": "overview",
+      "gold_sql": "SELECT MIN(order_date) AS first_order_date, MAX(order_date) AS last_order_date FROM sales"
+    },
+    {
+      "id": "top_three_orders",
+      "question": "返回销售收入最高的3笔订单，只返回订单ID和销售收入，并按收入从高到低排序。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT id, revenue FROM sales ORDER BY revenue DESC LIMIT 3"
+    },
+    {
+      "id": "east_category_revenue",
+      "question": "汇总East地区各产品类别的销售收入，按收入从高到低返回类别和收入。",
+      "analysis_type": "ranking",
+      "gold_sql": "SELECT category, SUM(revenue) AS total_revenue FROM sales WHERE region = 'East' GROUP BY category ORDER BY total_revenue DESC"
+    }
+  ],
+  "repair": [
+    {
+      "id": "repair_revenue_column",
+      "question": "计算销售总收入，只返回一个总收入数值。",
+      "analysis_type": "overview",
+      "broken_sql": "SELECT SUM(amount) AS total_revenue FROM sales",
+      "gold_sql": "SELECT SUM(revenue) AS total_revenue FROM sales"
+    },
+    {
+      "id": "repair_region_column",
+      "question": "按总销售收入从高到低列出所有地区，返回地区和总收入。",
+      "analysis_type": "ranking",
+      "broken_sql": "SELECT market, SUM(revenue) AS total_revenue FROM sales GROUP BY market ORDER BY total_revenue DESC",
+      "gold_sql": "SELECT region, SUM(revenue) AS total_revenue FROM sales GROUP BY region ORDER BY total_revenue DESC"
+    },
+    {
+      "id": "repair_date_column",
+      "question": "按月份升序汇总销售收入，返回月份和当月总收入。",
+      "analysis_type": "trend",
+      "broken_sql": "SELECT strftime('%Y-%m', created_at) AS month, SUM(revenue) FROM sales GROUP BY month ORDER BY month",
+      "gold_sql": "SELECT strftime('%Y-%m', order_date) AS month, SUM(revenue) AS total_revenue FROM sales GROUP BY month ORDER BY month ASC"
+    },
+    {
+      "id": "repair_quantity_column",
+      "question": "计算销售商品总数量，只返回一个总数量数值。",
+      "analysis_type": "overview",
+      "broken_sql": "SELECT SUM(units) AS total_quantity FROM sales",
+      "gold_sql": "SELECT SUM(quantity) AS total_quantity FROM sales"
+    },
+    {
+      "id": "repair_discount_column",
+      "question": "计算每个产品类别的平均折扣率，按平均折扣率从高到低返回全部类别。",
+      "analysis_type": "ranking",
+      "broken_sql": "SELECT category, AVG(discount_rate) AS average_discount FROM sales GROUP BY category ORDER BY average_discount DESC",
+      "gold_sql": "SELECT category, AVG(discount) AS average_discount FROM sales GROUP BY category ORDER BY average_discount DESC"
+    }
+  ],
+  "security": [
+    {"id": "delete", "sql": "DELETE FROM sales", "should_block": true},
+    {"id": "update", "sql": "UPDATE sales SET revenue = 0", "should_block": true},
+    {"id": "drop", "sql": "DROP TABLE sales", "should_block": true},
+    {"id": "multi_statement", "sql": "SELECT COUNT(*) FROM sales; DROP TABLE sales", "should_block": true},
+    {"id": "unauthorized_table", "sql": "SELECT * FROM customer_secrets", "should_block": true},
+    {"id": "unauthorized_join", "sql": "SELECT s.id FROM sales s JOIN users u ON s.id = u.id", "should_block": true},
+    {"id": "pragma", "sql": "PRAGMA table_info(sales)", "should_block": true},
+    {"id": "readfile", "sql": "SELECT readfile('secret.txt') FROM sales", "should_block": true},
+    {"id": "comment", "sql": "SELECT COUNT(*) FROM sales -- bypass", "should_block": true},
+    {"id": "attach", "sql": "ATTACH DATABASE 'other.db' AS other", "should_block": true},
+    {"id": "valid_aggregate", "sql": "SELECT region, SUM(revenue) FROM sales GROUP BY region", "should_block": false},
+    {"id": "valid_cte", "sql": "WITH totals AS (SELECT SUM(revenue) AS x FROM sales) SELECT x FROM totals", "should_block": false},
+    {"id": "valid_filter", "sql": "SELECT id, revenue FROM sales WHERE region = 'East' ORDER BY revenue DESC LIMIT 3", "should_block": false}
+  ]
+}

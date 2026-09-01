@@ -23,6 +23,10 @@ class PlannerAgent:
             "你是一个受治理企业数据分析系统的规划智能体。"
             "将分析类型归类为 overview、data_quality、ranking、trend 或 correlation。"
             "返回简洁的中文目标和 2～5 个可执行的中文分析步骤，不得虚构数据库结构。"
+            "请严格按照以下字段返回 JSON 对象，不要附加 Markdown 或解释："
+            '{"objective":"中文目标","analysis_type":"overview|data_quality|ranking|trend|correlation",'
+            '"steps":["步骤1","步骤2"],"risk_level":"low|medium|high",'
+            '"requires_approval":false,"risk_reasons":[]}。'
             "风险审批由独立规则执行，不要把普通只读分析标记为高风险。"
             "除固定枚举值和技术标识外，所有文本均使用简体中文。"
             f"\n\n用户请求：{normalized}",

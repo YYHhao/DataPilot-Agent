@@ -6,7 +6,41 @@ DataPilot Agent 是一个面向企业数据源的多 Agent 数据分析项目。
 
 > 当前版本：`0.2.0`。本项目适合本地学习、功能验证和单实例原型演示，尚不是开箱即用的多租户生产平台。
 
-## 一、核心能力
+## 一、项目结构
+
+```text
+DataPilot-Agent/
+├── data/
+│   ├── catalog.json                    # 数据集目录和表白名单
+│   ├── semantic_catalog.json           # 指标、维度和业务规则
+│   ├── olist_csv/                      # Olist 原始 CSV，不提交 Git
+│   └── runs/                           # JSON 状态和 Markdown 报告
+├── evaluation/
+│   ├── dataset.jsonl                   # 评估用例
+│   └── run_eval.py                     # 评估入口
+├── scripts/
+│   ├── seed_demo.py                    # SQLite 演示数据初始化
+│   └── import_olist_postgres.py        # Olist PostgreSQL 导入脚本
+├── src/datapilot/
+│   ├── agents/                         # Planner、SQL、Analyst 等 Agent
+│   ├── api.py                          # FastAPI 接口
+│   ├── catalog.py                      # 数据集目录
+│   ├── datasources.py                  # SQLite/PostgreSQL 访问
+│   ├── retrieval.py                    # BM25 + Embedding 混合检索
+│   ├── mcp_server.py                   # MCP 工具服务
+│   ├── observability.py                # Token 用量采集
+│   ├── security.py                     # SQL 安全校验
+│   ├── storage.py                      # 状态和报告持久化
+│   └── workflow.py                     # LangGraph 工作流
+├── tests/
+├── .env.example
+├── Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
+└── requirements.txt
+```
+
+## 二、核心能力
 
 - 使用 LangGraph 编排 Planner、Schema、SQL、Analyst、Reviewer 和 Reporter；
 - 使用结构化模型输出生成分析计划及 1～5 条分析 SQL；
@@ -22,7 +56,7 @@ DataPilot Agent 是一个面向企业数据源的多 Agent 数据分析项目。
 - 保存 JSON 任务状态与中文 Markdown 报告；
 - 提供 FastAPI、CLI、MCP Server、Docker、测试和离线评估入口。
 
-## 二、工作流程
+## 三、工作流程
 
 ```mermaid
 flowchart TD
@@ -53,7 +87,7 @@ flowchart TD
 | Reviewer | 检查执行状态、数据权限和证据链 |
 | Reporter | 生成包含 SQL、结果预览和复核结论的中文报告 |
 
-## 三、环境要求
+## 四、环境要求
 
 - Python `>=3.11,<3.15`；
 - Miniconda、Anaconda 或其他 Python 虚拟环境；
@@ -67,7 +101,7 @@ flowchart TD
 D:\pythonDemo\agent\DataPilot-Agent
 ```
 
-## 四、快速开始：SQLite 演示
+## 五、快速开始：SQLite 演示
 
 这是验证 DataPilot 安装和模型配置的最短路径。
 
@@ -158,7 +192,7 @@ uvicorn datapilot.api:app --reload
 
 访问根地址 `/` 返回 `404` 属于正常现象；当前项目没有定义首页路由。
 
-## 五、Olist + PostgreSQL 完整示例
+## 六、Olist + PostgreSQL 完整示例
 
 项目已提供 Olist CSV 导入脚本，适合测试多表 JOIN、月度趋势、商品类别、客户地区、支付方式、配送时效和评价分析。
 
@@ -291,7 +325,7 @@ docker ps -a --filter "name=olist-postgres"
 
 数据库保存在 Docker volume `olist_postgres_data` 中，停止容器不会删除数据。
 
-## 六、使用 CLI
+## 七、使用 CLI
 
 基本格式：
 
@@ -315,7 +349,7 @@ datapilot demo_sales "导出全部客户记录" --approved
 
 审批只允许工作流继续运行，不会提升数据库权限，也不会绕过只读 SQL 校验。
 
-## 七、使用 API
+## 八、使用 API
 
 ### 查看数据集
 
@@ -372,7 +406,7 @@ Invoke-RestMethod -Method Post `
   -Uri "http://127.0.0.1:8000/v1/runs/$($run.run_id)/approve"
 ```
 
-## 八、数据源目录
+## 九、数据源目录
 
 数据源登记在 `data/catalog.json`。客户端只能提交 `dataset_id`，不能在请求中传入连接字符串或临时修改表白名单。
 
@@ -414,7 +448,7 @@ $env:SALES_DATABASE_URL = "postgresql://readonly_user:password@localhost:5432/sa
 
 生产数据库应使用只读账户，并仅授予白名单表或视图的 `SELECT` 权限。
 
-## 九、业务语义目录
+## 十、业务语义目录
 
 业务定义保存在 `data/semantic_catalog.json`。每条文档描述一个指标、维度或业务规则：
 
@@ -441,7 +475,7 @@ $env:SALES_DATABASE_URL = "postgresql://readonly_user:password@localhost:5432/sa
 
 Embedding 服务不可用时会退化为 BM25，但 Planner 和 SQL Agent 仍需要可用的大模型服务。新增数据集时，应同步补充该数据集的指标和业务规则，否则报告会显示“未找到与请求匹配的受治理业务定义”。当前目录已包含 Olist 的订单量、商品收入、支付金额、客单价、运费、评价分、订单月份、订单状态、商品类别和完整历史范围规则。
 
-## 十、MCP Server
+## 十一、MCP Server
 
 启动 stdio MCP Server：
 
@@ -471,7 +505,7 @@ MCP 客户端配置示例：
 }
 ```
 
-## 十一、Docker 运行 DataPilot API
+## 十二、Docker 运行 DataPilot API
 
 项目根目录已有 `Dockerfile` 和 `docker-compose.yml`：
 
@@ -491,7 +525,7 @@ docker compose down
 
 Compose 会把本地 `data` 目录挂载到容器，因此任务状态和报告保存在宿主机。若 DataPilot API 也运行在容器中，连接另一个 PostgreSQL 容器时不能使用 `localhost`；应将两个服务加入同一 Docker 网络，并使用 PostgreSQL 服务名作为主机名。
 
-## 十二、配置项
+## 十三、配置项
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -509,7 +543,7 @@ Compose 会把本地 `data` 目录挂载到容器，因此任务状态和报告�
 | `DATAPILOT_CATALOG_PATH` | `data/catalog.json` | 数据集目录 |
 | `DATAPILOT_RUN_DIR` | `data/runs` | 任务状态和报告目录 |
 
-## 十三、测试与评估
+## 十四、测试与评估
 
 运行完整测试：
 
@@ -534,45 +568,28 @@ python evaluation/run_eval.py --limit 5
 
 评估会真实调用已配置的模型服务，结果写入 `evaluation/results.json`。
 
+运行聚焦业务效果的评测（结果级 Text-to-SQL 正确率、SQL Repair 修复成功率、
+安全拦截率以及 P50/P95 时延）：
+
+```bash
+python evaluation/run_business_eval.py
+```
+
+首次验证模型连接时可减少在线调用数量：
+
+```bash
+python evaluation/run_business_eval.py --limit 2 --repair-limit 1
+```
+
+该评测会在同一数据库上分别执行模型 SQL 和标准 SQL，通过有序结果集等价判断
+Text-to-SQL 与 Repair 是否正确；安全评测同时报告攻击拦截率和正常查询放行率。
+完整结果写入 `evaluation/business_results.json`。
+
 代码检查：
 
 ```bash
 ruff check .
 ruff format --check .
-```
-
-## 十四、项目结构
-
-```text
-DataPilot-Agent/
-├── data/
-│   ├── catalog.json                    # 数据集目录和表白名单
-│   ├── semantic_catalog.json           # 指标、维度和业务规则
-│   ├── olist_csv/                      # Olist 原始 CSV，不提交 Git
-│   └── runs/                           # JSON 状态和 Markdown 报告
-├── evaluation/
-│   ├── dataset.jsonl                   # 评估用例
-│   └── run_eval.py                     # 评估入口
-├── scripts/
-│   ├── seed_demo.py                    # SQLite 演示数据初始化
-│   └── import_olist_postgres.py        # Olist PostgreSQL 导入脚本
-├── src/datapilot/
-│   ├── agents/                         # Planner、SQL、Analyst 等 Agent
-│   ├── api.py                          # FastAPI 接口
-│   ├── catalog.py                      # 数据集目录
-│   ├── datasources.py                  # SQLite/PostgreSQL 访问
-│   ├── retrieval.py                    # BM25 + Embedding 混合检索
-│   ├── mcp_server.py                   # MCP 工具服务
-│   ├── observability.py                # Token 用量采集
-│   ├── security.py                     # SQL 安全校验
-│   ├── storage.py                      # 状态和报告持久化
-│   └── workflow.py                     # LangGraph 工作流
-├── tests/
-├── .env.example
-├── Dockerfile
-├── docker-compose.yml
-├── pyproject.toml
-└── requirements.txt
 ```
 
 ## 十五、常见问题

@@ -68,6 +68,9 @@ class SqlAgent:
         )
         return (
             "你是 Text-to-SQL 智能体，请生成 1～5 条只读分析查询。"
+            "请严格按照以下字段返回 JSON 对象，不要使用 id 等其他字段名，也不要附加 Markdown 或解释："
+            f'{{"dialect":"{profile.driver}","queries":['
+            '{"query_id":"Q1","purpose":"中文用途","sql":"SELECT ..."}]}}。'
             f"数据库方言：{profile.driver}。只能使用下方给出的结构。严禁 SELECT *、"
             "写操作、系统表、SQL 注释或多语句。purpose 字段必须使用简体中文。"
             "必须严格遵守用户明确给出的时间范围；如果用户没有指定时间范围，"
